@@ -2,8 +2,8 @@
 
 # From Render to Material: Cross-Modal Alignment of a Vision-Language Model for Texture Retrieval
 
-**Anonymous Author(s)**
-*Institution*
+**WU XIANGYU**
+*Nanyang Technological University — MIAO Lab*
 
 [![Paper](https://img.shields.io/badge/paper-PDF-red)](paper/main.pdf)
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
