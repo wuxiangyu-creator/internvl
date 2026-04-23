@@ -7,7 +7,9 @@
 import warnings
 from typing import List, Optional, Tuple, Union
 
+import torch
 import torch.distributed as dist
+import torch.nn.functional as F
 import torch.utils.checkpoint
 import transformers
 from internvl.conversation import get_conv_template
@@ -26,6 +28,21 @@ from .configuration_internvl_chat import InternVLChatConfig
 from .modeling_intern_vit import InternVisionModel, has_flash_attn
 
 logger = logging.get_logger(__name__)
+
+
+class ContrastiveHead(nn.Module):
+    """Projection head for image-texture contrastive learning."""
+
+    def __init__(self, in_dim: int, proj_dim: int = 256):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, in_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(in_dim, proj_dim),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return F.normalize(self.net(x), dim=-1)
 
 
 def version_cmp(v1, v2, op='eq'):
@@ -92,6 +109,11 @@ class InternVLChatModel(PreTrainedModel):
             nn.GELU(),
             nn.Linear(llm_hidden_size, llm_hidden_size)
         )
+
+        # Contrastive head for image-texture alignment
+        # Store log(temperature) so temperature is always positive; init tau=0.07 -> log(0.07)≈-2.66
+        self.contrastive_head = ContrastiveHead(in_dim=vit_hidden_size, proj_dim=256)
+        self.contrastive_log_temp = nn.Parameter(torch.tensor(-2.6593))  # log(0.07)
 
         self.img_context_token_id = None
         self.conv_template = get_conv_template(self.template)
@@ -289,6 +311,33 @@ class InternVLChatModel(PreTrainedModel):
         vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], -1, vit_embeds.shape[-1])
         vit_embeds = self.mlp1(vit_embeds)
         return vit_embeds
+
+    def get_cls_embedding(self, pixel_values: torch.FloatTensor) -> torch.Tensor:
+        """Get global CLS token embedding from ViT, projected by contrastive head."""
+        vit_out = self.vision_model(
+            pixel_values=pixel_values,
+            output_hidden_states=False,
+            return_dict=True,
+        ).last_hidden_state  # (B, N+1, C)
+        cls = vit_out[:, 0, :]  # CLS token: (B, C)
+        return self.contrastive_head(cls)  # (B, proj_dim)
+
+    def contrastive_forward(
+        self,
+        pixel_values: torch.FloatTensor,
+        texture_pixel_values: torch.FloatTensor,
+    ) -> torch.Tensor:
+        """InfoNCE loss between rendered image embeddings and texture embeddings."""
+        img_emb = self.get_cls_embedding(pixel_values)         # (B, D)
+        tex_emb = self.get_cls_embedding(texture_pixel_values)  # (B, D)
+
+        # Clamp log_temp to [-4.6, 2.3] so tau stays in [0.01, 10]
+        log_temp = self.contrastive_log_temp.clamp(-4.6, 2.3)
+        temp = log_temp.exp()
+        logits = torch.matmul(img_emb, tex_emb.T) / temp  # (B, B)
+        labels = torch.arange(logits.size(0), device=logits.device)
+        loss = (F.cross_entropy(logits, labels) + F.cross_entropy(logits.T, labels)) / 2
+        return loss
 
     def batch_chat(self, tokenizer, pixel_values, questions, generation_config, num_patches_list=None,
                    history=None, return_history=False, IMG_START_TOKEN='<img>', IMG_END_TOKEN='</img>',

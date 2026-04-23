@@ -1,0 +1,78 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyperFirstAtBeginDocument{\AtBeginDocument}
+\HyperFirstAtBeginDocument{\ifx\hyper@anchor\@undefined
+\global\let\oldcontentsline\contentsline
+\gdef\contentsline#1#2#3#4{\oldcontentsline{#1}{#2}{#3}}
+\global\let\oldnewlabel\newlabel
+\gdef\newlabel#1#2{\newlabelxx{#1}#2}
+\gdef\newlabelxx#1#2#3#4#5#6{\oldnewlabel{#1}{{#2}{#3}}}
+\AtEndDocument{\ifx\hyper@anchor\@undefined
+\let\contentsline\oldcontentsline
+\let\newlabel\oldnewlabel
+\fi}
+\fi}
+\global\let\hyper@last\relax 
+\gdef\HyperFirstAtBeginDocument#1{#1}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{radford2021clip}
+\citation{li2022blip}
+\citation{chen2024internvl}
+\citation{chen2020simclr}
+\citation{he2020moco}
+\citation{radford2021clip}
+\citation{oord2018infonce}
+\citation{chen2024internvl}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Related Work}{1}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Contrastive Representation Learning.}{1}{section*.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Vision-Language Model Backbones.}{1}{section*.3}\protected@file@percent }
+\citation{haralick1973texture}
+\citation{bell2015material}
+\citation{zhang2023matretrieval}
+\citation{loshchilov2019adamw}
+\@writefile{toc}{\contentsline {paragraph}{Image-Based Material Retrieval.}{2}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Dataset}{2}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Data Collection}{2}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Statistics}{2}{subsection.3.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Dataset splits.\relax }}{2}{table.caption.5}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:dataset}{{1}{2}{Dataset splits.\relax }{table.caption.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Architecture overview. Both the rendered image (query) and the texture map (gallery item) are processed by the same ViT backbone followed by the ContrastiveHead. Representations are aligned with a symmetric InfoNCE loss.\relax }}{2}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:arch}{{1}{2}{Architecture overview. Both the rendered image (query) and the texture map (gallery item) are processed by the same ViT backbone followed by the ContrastiveHead. Representations are aligned with a symmetric InfoNCE loss.\relax }{figure.caption.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Method}{2}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Model Architecture}{2}{subsection.4.1}\protected@file@percent }
+\newlabel{eq:head}{{1}{2}{Model Architecture}{equation.4.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Contrastive Training Objective}{2}{subsection.4.2}\protected@file@percent }
+\newlabel{eq:loss}{{3}{2}{Contrastive Training Objective}{equation.4.3}{}}
+\citation{johnson2021faiss}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Training Setup}{3}{subsection.4.3}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Contrastive Fine-Tuning of InternVL\relax }}{3}{algorithm.1}\protected@file@percent }
+\newlabel{alg:train}{{1}{3}{Contrastive Fine-Tuning of InternVL\relax }{algorithm.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{ViT Freezing.}{3}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Image Pre-processing.}{3}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Inference.}{3}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experiments}{3}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Evaluation Protocol}{3}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Main Results}{3}{subsection.5.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Retrieval results on the validation set (gallery size = 1{,}956).\relax }}{3}{table.caption.10}\protected@file@percent }
+\newlabel{tab:main}{{2}{3}{Retrieval results on the validation set (gallery size = 1{,}956).\relax }{table.caption.10}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Qualitative Analysis}{3}{subsection.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Same-family confusion.}{3}{section*.11}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Appearance–geometry entanglement.}{3}{section*.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Ablation: Temperature Warmup}{3}{subsection.5.4}\protected@file@percent }
+\bibstyle{plain}
+\bibcite{radford2021clip}{1}
+\bibcite{li2022blip}{2}
+\bibcite{chen2024internvl}{3}
+\bibcite{chen2020simclr}{4}
+\bibcite{he2020moco}{5}
+\bibcite{oord2018infonce}{6}
+\bibcite{haralick1973texture}{7}
+\bibcite{bell2015material}{8}
+\bibcite{zhang2023matretrieval}{9}
+\bibcite{loshchilov2019adamw}{10}
+\bibcite{johnson2021faiss}{11}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Conclusion}{4}{section.6}\protected@file@percent }
+\gdef \@abspage@last{4}
