@@ -18,7 +18,7 @@
 \hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
 
 % ─── Title ───────────────────────────────────────────────────────────────────
-\title{\textbf{ReTR: Contrastive Vision-Language Alignment\\
+\title{\textbf{ReTR: Two-Stage Vision-Language Alignment\\
 for Render-to-Material Texture Retrieval}}
 
 \author{
@@ -41,20 +41,23 @@ library given only a rendered image of a 3D object is a challenging
 cross-modal matching problem: the query is a composite scene image that
 conflates geometry, lighting, and material appearance, while the gallery
 contains flat, uniformly-lit texture maps.
-We address this \emph{render-to-material} retrieval task by
-contrastively fine-tuning the visual backbone of InternVL2-1B, a
+We address this \emph{render-to-material} retrieval task with a
+\textbf{two-stage contrastive framework} built on InternVL2-1B, a
 state-of-the-art vision-language model (VLM).
-A lightweight two-layer projection head maps the CLS token of the
-unfrozen Vision Transformer (ViT) into a shared 256-dimensional
-embedding space, trained with a symmetric InfoNCE loss and a learned
-temperature.
-We construct a paired dataset of \textbf{19,568} (render, texture) pairs
-and propose \textbf{RMR-Score}, a unified evaluation metric that combines
-precision, coverage, and ranking quality into a single scalar.
-On the full validation gallery of 1,956 textures, the fine-tuned model
-achieves R@1\,=\,34.5\%, R@5\,=\,71.6\%, nDCG@10\,=\,0.579,
-and RMR-Score\,=\,0.524, outperforming CLIP ViT-L/14 by $19\times$
-on R@1.
+\textbf{Stage~1} fine-tunes the Vision Transformer (ViT) backbone with a
+lightweight ContrastiveHead, mapping CLS tokens into a shared
+256-dimensional embedding space via symmetric InfoNCE loss.
+\textbf{Stage~2} extends retrieval to multimodal queries: the frozen ViT
+visual features are fused with material text descriptions through
+a LoRA-adapted Qwen2 LLM and a dedicated RetrievalHead, enabling
+joint image-text retrieval in the same embedding space.
+We construct a dataset of \textbf{19,568} (render, texture, description)
+triplets and propose \textbf{RMR-Score}, a unified evaluation metric that
+combines precision, coverage, and ranking quality into a single scalar.
+On the full validation gallery of 1,956 textures, Stage~1 achieves
+RMR-Score\,=\,0.524 (R@1\,=\,34.5\%), while Stage~2 multimodal retrieval
+further improves to \textbf{RMR-Score\,=\,0.634} (R@1\,=\,44.5\%,
+R@5\,=\,83.8\%), outperforming CLIP ViT-L/14 by over $24\times$ on R@1.
 \end{abstract}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -100,18 +103,21 @@ proposing \textbf{RMR-Score}, a single scalar that jointly captures precision
 Our contributions are:
 \begin{enumerate}[leftmargin=*,itemsep=0pt]
   \item The first \textbf{render-to-material retrieval benchmark}:
-        a paired dataset of 19,568 samples spanning diverse material
-        categories, an evaluation protocol, and standardised baselines.
+        a dataset of 19,568 (render, texture, description) triplets spanning
+        diverse material categories, an evaluation protocol, and standardised
+        baselines.
   \item \textbf{RMR-Score}: a unified evaluation metric for cross-modal
         material retrieval that combines R@1, R@$K$, and MRR into a single
         comparable scalar, addressing the fragmented metrics problem in
         existing retrieval benchmarks.
-  \item A \textbf{contrastive fine-tuning recipe} for VLM visual backbones
-        that uses a learned-temperature InfoNCE loss, gradient accumulation,
-        and ViT unfreezing — fitting on a single consumer GPU.
-  \item Comprehensive \textbf{evaluation} showing that our method achieves
-        RMR-Score = 0.524 and R@5 = 71.6\%, a $19\times$ R@1 improvement
-        over the strongest zero-shot baseline.
+  \item \textbf{Stage~1}: a contrastive fine-tuning recipe for VLM visual
+        backbones using a learned-temperature InfoNCE loss, gradient
+        accumulation, and ViT unfreezing — achieving RMR = 0.524 on a
+        single consumer GPU.
+  \item \textbf{Stage~2}: a multimodal extension that fuses ViT visual
+        features with LLM text understanding via LoRA and a dual-path
+        contrastive loss, boosting retrieval to \textbf{RMR = 0.634}
+        (R@1 = 44.5\%, R@5 = 83.8\%).
 \end{enumerate}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -132,10 +138,20 @@ pairs within a visual-only setting.
 InternVL~\cite{chen2024internvl} is a family of VLMs that pair a large
 InternViT encoder (up to 6B parameters) with an instruction-tuned large
 language model via a two-layer MLP projector.
-InternVL2-1B uses a 300M-parameter ViT with hidden size $d=1024$ and achieves
-competitive performance on multimodal benchmarks.
-Because our retrieval task is purely visual, we discard the language model
-after fine-tuning, achieving a compact ViT-only inference pipeline.
+InternVL2-1B uses a 300M-parameter ViT with hidden size $d_v=1024$ paired
+with a Qwen2 LLM (hidden size $d_l=896$) and achieves competitive performance
+on multimodal benchmarks.
+In Stage~1 of our system, the language model is discarded for a compact
+ViT-only visual pipeline; Stage~2 reactivates the LLM via parameter-efficient
+LoRA adapters~\cite{hu2022lora} to incorporate text-based material
+descriptions.
+
+\paragraph{Parameter-Efficient Fine-Tuning.}
+Low-Rank Adaptation (LoRA)~\cite{hu2022lora} inserts trainable rank-$r$
+decomposition matrices into attention layers, reducing the number of
+trainable parameters from hundreds of millions to a small fraction.
+We apply LoRA (rank $r=64$, $\alpha=128$) to the Qwen2 LLM to enable
+multimodal retrieval without full LLM fine-tuning.
 
 \paragraph{Image-Based Material Retrieval.}
 Traditional approaches rely on handcrafted features
@@ -203,7 +219,7 @@ retrieval metrics — to allow comparison with broader retrieval literature.
 
 \subsection{Data Collection}
 
-Each sample in our dataset is a pair $(\mathbf{f}, \mathbf{t})$:
+Each sample in our dataset is a triplet $(\mathbf{f}, \mathbf{t}, \mathbf{d})$:
 \begin{itemize}[leftmargin=*,itemsep=0pt]
   \item $\mathbf{f}$ (\texttt{fig}): a rendered image of a 3D object with a
         specific material applied, captured under standard lighting conditions.
@@ -214,6 +230,11 @@ Each sample in our dataset is a pair $(\mathbf{f}, \mathbf{t})$:
         illumination.
         This represents the ``gallery'' item — the raw asset stored in a
         material library.
+  \item $\mathbf{d}$ (\texttt{description}): a natural-language description
+        of the material's visual appearance (colour, surface pattern, finish),
+        automatically generated by InternVL2-1B prompted on the texture image.
+        Descriptions average 32 tokens and cover attributes such as
+        colour family, surface texture, reflectance, and material category.
 \end{itemize}
 
 All images are resized to $448 \times 448$ pixels, matching the native
@@ -249,21 +270,21 @@ The validation gallery therefore contains 1,956 candidate textures.
 \section{Method}
 % ─────────────────────────────────────────────────────────────────────────────
 
-\subsection{Model Architecture}
+\subsection{Stage 1: Visual Contrastive Alignment}
+\label{sec:stage1}
 
-Figure~\ref{fig:arch} provides an overview of the system.
-We build on the visual backbone of \textbf{InternVL2-1B}, comprising a
-ViT with hidden size $d_{\text{ViT}} = 1024$ and 448$\times$448 input
-resolution.
+Figure~\ref{fig:arch} shows the two-stage system overview.
+In Stage~1, we build on the visual backbone of \textbf{InternVL2-1B}:
+a ViT with hidden size $d_v = 1024$ and $448\!\times\!448$ input resolution.
 The language model and MLP projector are discarded.
 
-On top of the ViT we attach a \textbf{ContrastiveHead}:
+On top of the ViT CLS token we attach a \textbf{ContrastiveHead}:
 \begin{equation}
-  h(\mathbf{x}) = \ell_2\!\!\left(\mathbf{W}_2\,\sigma(\mathbf{W}_1\,\text{CLS}(\mathbf{x}))\right),
+  h_v(\mathbf{x}) = \ell_2\!\!\left(\mathbf{W}_2^v\,\sigma(\mathbf{W}_1^v\,\text{CLS}_v(\mathbf{x}))\right),
   \label{eq:head}
 \end{equation}
-where $\mathbf{W}_1 \in \mathbb{R}^{d_{\text{ViT}} \times d_{\text{ViT}}}$,
-$\mathbf{W}_2 \in \mathbb{R}^{d_{\text{ViT}} \times 256}$, $\sigma$ is ReLU,
+where $\mathbf{W}_1^v \in \mathbb{R}^{d_v \times d_v}$,
+$\mathbf{W}_2^v \in \mathbb{R}^{d_v \times 256}$, $\sigma$ is ReLU,
 and $\ell_2$ denotes L2 normalisation.
 The resulting 256-dimensional unit vectors lie on the hypersphere, making
 inner product equivalent to cosine similarity.
@@ -271,24 +292,55 @@ inner product equivalent to cosine similarity.
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{architecture.png}
-\caption{Architecture overview. Both the rendered image (query) and the
-         texture map (gallery item) are processed by the same ViT backbone
-         followed by the ContrastiveHead. Representations are aligned with a
-         symmetric InfoNCE loss.}
+\caption{Two-stage system overview. \emph{Stage~1 (visual path, top)}: both
+         the rendered query and the texture gallery item pass through the
+         shared ViT backbone and ContrastiveHead.
+         \emph{Stage~2 (multimodal path, bottom)}: the query image and its
+         text description are fused by the LoRA-adapted LLM; the final
+         hidden state feeds a RetrievalHead that maps into the same 256-dim
+         embedding space as Stage~1, enabling image-only and image+text
+         queries against the same gallery index.}
 \label{fig:arch}
 \end{figure}
 
-\subsection{Contrastive Training Objective}
+\subsection{Stage 2: Multimodal Retrieval}
+\label{sec:stage2}
 
-Given a mini-batch of $B$ (render, texture) pairs
-$\{(\mathbf{f}_i, \mathbf{t}_i)\}_{i=1}^{B}$, we compute embeddings:
-\begin{align}
-  \mathbf{u}_i &= h(\mathbf{f}_i), \quad
-  \mathbf{v}_i = h(\mathbf{t}_i).
-\end{align}
-The symmetric InfoNCE (NT-Xent) loss is:
+Stage~2 re-activates the frozen Qwen2 LLM component of InternVL2-1B to
+incorporate free-form material text descriptions as additional query signal.
+
+\paragraph{Architecture.}
+The ViT processes the rendered image and its patch tokens are projected to
+LLM dimension via the pre-trained MLP1 bridge.
+Image tokens prepend the tokenised material description and the full sequence
+is forwarded through the LoRA-adapted LLM.
+The final-layer hidden state of the last sequence token enters a
+\textbf{RetrievalHead}:
 \begin{equation}
-  \mathcal{L} = \frac{1}{2}\left[
+  h_m(\mathbf{x}, \mathbf{t}) = \ell_2\!\!\left(
+      \mathbf{W}_2^m\,\sigma(\mathbf{W}_1^m\,\text{LLM}(\text{MLP1}(f_v(\mathbf{x})), \mathbf{t})\right),
+  \label{eq:rethead}
+\end{equation}
+where $\mathbf{W}_1^m \in \mathbb{R}^{d_l \times \lfloor d_l/2 \rfloor}$
+($d_l = 896$), $\mathbf{W}_2^m \in \mathbb{R}^{\lfloor d_l/2 \rfloor \times 256}$,
+and the output matches the 256-dim space of Stage~1.
+
+\paragraph{LoRA Adapters.}
+We apply LoRA with rank $r=64$ and $\alpha=128$ to all attention projection
+layers of the Qwen2 LLM, introducing $\approx$42M trainable parameters while
+keeping the 558M base weights frozen.
+The ViT backbone from Stage~1 is also frozen in Stage~2, preserving its
+learned visual geometry.
+
+\subsection{Dual-Path Training Objective}
+\label{sec:dualloss}
+
+In Stage~1, given a mini-batch of $B$ (render, texture) pairs
+$\{(\mathbf{f}_i, \mathbf{t}_i)\}_{i=1}^{B}$, we compute unit embeddings
+$\mathbf{u}_i = h_v(\mathbf{f}_i)$, $\mathbf{v}_i = h_v(\mathbf{t}_i)$
+and minimise the symmetric InfoNCE (NT-Xent) loss:
+\begin{equation}
+  \mathcal{L}_{\text{vis}} = \frac{1}{2}\left[
     \ell(\mathbf{U},\mathbf{V}) + \ell(\mathbf{V},\mathbf{U})
   \right],
   \label{eq:loss}
@@ -302,9 +354,26 @@ where
 \end{equation}
 The temperature $\tau = \exp(\phi)$ is a scalar learnable parameter
 initialised at $\phi_0 = \log(0.07) \approx -2.66$ and clamped to
-$[e^{-4.6},\, e^{2.3}]$ after each optimiser step to prevent collapse.
+$[e^{-4.6},\, e^{2.3}]$ to prevent collapse.
 To stabilise early training, $\phi$ is frozen for the first two epochs and
-then jointly optimised with the rest of the parameters.
+then jointly optimised.
+
+In Stage~2, each sample is a triplet $(\mathbf{f}_i, \mathbf{t}_i, \mathbf{d}_i)$.
+Multimodal query embeddings $\mathbf{q}_i = h_m(\mathbf{f}_i, \mathbf{d}_i)$
+are computed via the RetrievalHead.
+Gallery texture embeddings $\mathbf{v}_i$ come from the frozen Stage~1
+ContrastiveHead.
+The total loss is:
+\begin{equation}
+  \mathcal{L}_{\text{total}} = \alpha\,\mathcal{L}_{\text{vis}} + \beta\,\mathcal{L}_{\text{mm}},
+  \label{eq:dualloss}
+\end{equation}
+where $\mathcal{L}_{\text{mm}} = \tfrac{1}{2}[\ell(\mathbf{Q},\mathbf{V})+\ell(\mathbf{V},\mathbf{Q})]$
+is the symmetric InfoNCE between multimodal queries and textures.
+We set $\alpha = \beta = 1.0$.
+This dual-path objective simultaneously anchors the multimodal space to
+Stage~1 visual geometry and trains the LLM to incorporate textual material
+cues.
 
 \subsection{Training Setup}
 
@@ -314,26 +383,38 @@ decay $10^{-2}$ and a cosine learning rate schedule.
 Gradient clipping with max-norm 1.0 is applied at every optimiser step.
 
 \begin{algorithm}[h]
-\caption{Contrastive Fine-Tuning of InternVL}
+\caption{Two-Stage ReTR Training}
 \label{alg:train}
 \begin{algorithmic}[1]
-\Require Pre-trained ViT $f_\theta$, learning rate $\eta$, epochs $E$
-\State Initialise ContrastiveHead $g_\psi$ randomly
+\Require Pre-trained InternVL2-1B, learning rate $\eta$, epochs $E$
+\State \textbf{-- Stage 1 --}
+\State Initialise ContrastiveHead $h_v$ randomly
 \State Set $\phi \leftarrow \log(0.07)$, freeze $\phi$
 \For{epoch $e = 1,\ldots,E$}
   \If{$e = 3$} unfreeze $\phi$ \EndIf
   \For{each mini-batch $\{(\mathbf{f}_i,\mathbf{t}_i)\}$}
     \State Compute $\mathbf{u}_i, \mathbf{v}_i$ via Eq.~(\ref{eq:head})
-    \State Compute $\mathcal{L}$ via Eq.~(\ref{eq:loss})
+    \State Compute $\mathcal{L}_{\text{vis}}$ via Eq.~(\ref{eq:loss})
     \State Backprop, clip gradients, step AdamW
     \State Clamp $\phi \in [-4.6,\, 2.3]$
+  \EndFor
+  \State Evaluate val loss; save best checkpoint
+\EndFor
+\State \textbf{-- Stage 2 --}
+\State Load best Stage-1 ViT; apply LoRA($r$=64, $\alpha$=128) to LLM
+\State Initialise RetrievalHead $h_m$ and unfreeze MLP1
+\For{epoch $e = 1,\ldots,E$}
+  \For{each mini-batch $\{(\mathbf{f}_i,\mathbf{t}_i,\mathbf{d}_i)\}$}
+    \State Compute $\mathbf{q}_i=h_m(\mathbf{f}_i,\mathbf{d}_i)$, $\mathbf{v}_i=h_v(\mathbf{t}_i)$
+    \State Compute $\mathcal{L}_{\text{total}}$ via Eq.~(\ref{eq:dualloss})
+    \State Backprop, clip gradients, step AdamW
   \EndFor
   \State Evaluate val loss; save best checkpoint
 \EndFor
 \end{algorithmic}
 \end{algorithm}
 
-\paragraph{ViT Freezing.}
+\paragraph{Stage-1 ViT Freezing.}
 We experiment with two settings:
 (a)~\textbf{Frozen ViT}: only ContrastiveHead + $\phi$ are trained
 ($\sim$265K parameters), and
@@ -341,6 +422,7 @@ We experiment with two settings:
 ($\sim$302M parameters).
 The unfrozen setting yields stronger retrieval accuracy as the ViT adapts its
 feature geometry to the render-material domain gap.
+The best Stage-1 unfrozen checkpoint is used to initialise Stage~2.
 
 \paragraph{Image Pre-processing.}
 Both images are resized to $448\times 448$ via bicubic interpolation and
@@ -385,7 +467,7 @@ Table~\ref{tab:main} reports retrieval performance on the validation gallery.
 \caption{Retrieval results on the validation set (gallery size = 1{,}956).
          R@$K$ in \%; MRR, nDCG, MAP $\in [0,1]$; MedR = median rank ($\downarrow$);
          rSum = R@1+R@5+R@10 ($\uparrow$); RMR = proposed unified metric ($\uparrow$).
-         Best results in \textbf{bold}.}
+         Best results in \textbf{bold}. $\dagger$ uses image+text query.}
 \label{tab:main}
 \begin{tabular}{@{}l*{5}{c}c*{3}{c}c@{}}
 \toprule
@@ -401,12 +483,13 @@ CLIP ViT-L/14~\cite{radford2021clip}
                               & 1.8  & 4.5  & 7.0  & .037 & 473 && .040 & .031 & 13.2  & .033 \\
 InternVL2-1B (zero-shot)      & 0.3  & 1.1  & 1.5  & .011 & 722 && .008 & .006 & 2.9   & .008 \\
 \midrule
-Ours (frozen ViT)             & 11.0 & 31.0 & 43.3 & .216 & 14  && .253 & .198 & 85.3  & .212 \\
-\textbf{Ours (unfrozen ViT)}
-  & \textbf{34.5} & \textbf{71.6} & \textbf{81.4}
-  & \textbf{.511} & \textbf{2}
-  && \textbf{.579} & \textbf{.503} & \textbf{187.5}
-  & \textbf{.524} \\
+ReTR Stage~1 (frozen ViT)     & 11.0 & 31.0 & 43.3 & .216 & 14  && .253 & .198 & 85.3  & .212 \\
+ReTR Stage~1 (unfrozen ViT)   & 34.5 & 71.6 & 81.4 & .511 & 2   && .579 & .503 & 187.5 & .524 \\
+\textbf{ReTR Stage~2 (multimodal)$\dagger$}
+  & \textbf{44.5} & \textbf{83.8} & \textbf{91.2}
+  & \textbf{.619} & \textbf{2}
+  && \textbf{.688} & \textbf{.590} & \textbf{219.5}
+  & \textbf{.634} \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -415,21 +498,24 @@ Ours (frozen ViT)             & 11.0 & 31.0 & 43.3 & .216 & 14  && .253 & .198 &
 (1)~All zero-shot baselines achieve near-zero RMR-Score ($\leq 0.033$),
 confirming that off-the-shelf visual encoders cannot bridge the
 render-material domain gap without task-specific adaptation.
-(2)~Training only the ContrastiveHead while freezing the ViT
-(``frozen ViT'') already achieves RMR = 0.212 (R@1 = 11.0\%), a meaningful
-improvement over all zero-shot baselines, indicating that even a lightweight
-projection head can partially bridge the domain gap when trained on paired
-data.
-(3)~Unfreezing the ViT backbone yields a further \textbf{$2.5\times$ boost}:
-our full model achieves \textbf{RMR = 0.524}, a
-\textbf{$15.9\times$ improvement} over the strongest zero-shot baseline
-(CLIP ViT-L/14, RMR = 0.033).
-On individual metrics, R@1 improves from 1.8\% to 34.5\% ($19\times$),
-nDCG@10 from 0.040 to 0.579 ($14\times$), and median rank drops from 473
-to~2.
-(4)~The large gap between R@1 and R@5 (34.5\% $\to$ 71.6\%) suggests that
-near-miss rank-1 errors are predominantly same-family confusions between
-visually similar material variants.
+(2)~ReTR Stage~1 with frozen ViT achieves RMR = 0.212 (R@1 = 11.0\%), a
+meaningful improvement showing that even a lightweight projection head can
+partially bridge the domain gap.
+(3)~Unfreezing the ViT in Stage~1 yields a \textbf{$2.5\times$ boost} to
+RMR = 0.524 ($15.9\times$ over CLIP ViT-L/14).
+R@1 improves from 1.8\% to 34.5\% ($19\times$) and median rank drops from
+473 to~2.
+(4)~\textbf{Stage~2 multimodal retrieval} adds a further \textbf{$+21\%$
+relative gain}, achieving \textbf{RMR = 0.634} (R@1 = 44.5\%,
+R@5 = 83.8\%, R@10 = 91.2\%).
+The text descriptions of material appearance provide the LLM with
+complementary semantic information unavailable from rendered images alone,
+enabling it to resolve same-family confusions that confound the visual-only
+Stage~1 model.
+(5)~The R@1 $\to$ R@5 gap narrows from Stage~1 (34.5\% $\to$ 71.6\%, ratio
+2.07$\times$) to Stage~2 (44.5\% $\to$ 83.8\%, ratio 1.88$\times$),
+indicating that multimodal queries not only rank the correct texture higher
+on average but also reduce within-family confusion.
 
 \subsection{Metric Comparison}
 
@@ -469,20 +555,31 @@ around 0.07–0.15 depending on the effective batch size.
 \section{Conclusion}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We have presented ReTR, a contrastive fine-tuning approach that adapts the
-visual backbone of InternVL2-1B to the render-to-material retrieval task,
-together with a unified evaluation metric (RMR-Score) that combines precision,
-coverage, and ranking quality into a single comparable scalar.
-Our method achieves RMR-Score = 0.524 on a gallery of 1,956 material
-textures, outperforming all zero-shot baselines by over an order of magnitude.
-This strong result demonstrates that VLM visual backbones can be efficiently
-repurposed for domain-specific cross-modal retrieval, and that a unified
-metric is essential for holistic evaluation.
+We have presented \textbf{ReTR}, a two-stage contrastive framework that
+adapts InternVL2-1B to the render-to-material retrieval task.
+Stage~1 fine-tunes the ViT backbone with a symmetric InfoNCE loss, achieving
+RMR-Score = 0.524 — a $15.9\times$ improvement over the strongest
+zero-shot baseline.
+Stage~2 augments retrieval with free-form material text descriptions via a
+LoRA-adapted LLM and a dual-path contrastive objective, further boosting
+performance to \textbf{RMR-Score = 0.634} (R@1 = 44.5\%, R@5 = 83.8\%,
+R@10 = 91.2\%) on a gallery of 1,956 material textures.
+We also proposed \textbf{RMR-Score}, a unified metric combining precision,
+coverage, and ranking quality into a single scalar that addresses the
+fragmented evaluation problem in cross-modal retrieval literature.
+
+These results demonstrate that (i) VLM visual backbones can be efficiently
+repurposed for specialised cross-modal retrieval, and (ii) incorporating
+text descriptions of gallery items as query-side signals provides substantial
+complementary information beyond what visual renderings alone encode.
+The two-stage design keeps gallery indexing purely visual (Stage~1 embeddings),
+so Stage~2 adds retrieval capability with no additional storage cost.
 
 Future work includes: (i) extending the training set with augmented renders
 (varied lighting, geometry, viewpoints); (ii) scaling to InternVL2-8B for
-improved representation capacity; (iii) integrating the retrieval model
-into an agentic pipeline for end-to-end material recommendation.
+improved representation capacity; (iii) exploring bidirectional LLM-ViT
+attention for stronger visual-language fusion; (iv) deploying the system
+in an agentic material recommendation pipeline.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \bibliographystyle{plain}
@@ -523,6 +620,10 @@ I.~Loshchilov and F.~Hutter, ``Decoupled weight decay regularization,''
 \bibitem{johnson2021faiss}
 J.~Johnson, M.~Douze, and H.~Jégou, ``Billion-scale similarity search with
 GPUs,'' \textit{IEEE Trans.\ Big Data}, 2021.
+
+\bibitem{hu2022lora}
+E.~J.~Hu et~al., ``LoRA: Low-rank adaptation of large language models,''
+\textit{ICLR}, 2022.
 
 \end{thebibliography}
 

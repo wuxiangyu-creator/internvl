@@ -45,6 +45,25 @@ class ContrastiveHead(nn.Module):
         return F.normalize(self.net(x), dim=-1)
 
 
+class RetrievalHead(nn.Module):
+    """Projection head that maps LLM hidden states to the shared retrieval space.
+
+    Input:  LLM last hidden state at the EOS position (llm_hidden_size).
+    Output: L2-normalised vector in the same 256-dim space as ContrastiveHead.
+    """
+
+    def __init__(self, in_dim: int, proj_dim: int = 256):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, in_dim // 2),
+            nn.ReLU(inplace=True),
+            nn.Linear(in_dim // 2, proj_dim),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return F.normalize(self.net(x), dim=-1)
+
+
 def version_cmp(v1, v2, op='eq'):
     import operator
 
@@ -110,10 +129,12 @@ class InternVLChatModel(PreTrainedModel):
             nn.Linear(llm_hidden_size, llm_hidden_size)
         )
 
-        # Contrastive head for image-texture alignment
-        # Store log(temperature) so temperature is always positive; init tau=0.07 -> log(0.07)≈-2.66
+        # Contrastive head for image-texture alignment (ViT CLS → 256-dim)
         self.contrastive_head = ContrastiveHead(in_dim=vit_hidden_size, proj_dim=256)
-        self.contrastive_log_temp = nn.Parameter(torch.tensor(-2.6593))  # log(0.07)
+        # Retrieval head for multimodal query alignment (LLM hidden → 256-dim, same space)
+        self.retrieval_head = RetrievalHead(in_dim=llm_hidden_size, proj_dim=256)
+        # Shared learned temperature; init tau=0.07 → log(0.07) ≈ -2.66
+        self.contrastive_log_temp = nn.Parameter(torch.tensor(-2.6593))
 
         self.img_context_token_id = None
         self.conv_template = get_conv_template(self.template)
@@ -338,6 +359,97 @@ class InternVLChatModel(PreTrainedModel):
         labels = torch.arange(logits.size(0), device=logits.device)
         loss = (F.cross_entropy(logits, labels) + F.cross_entropy(logits.T, labels)) / 2
         return loss
+
+    def _sym_infonce(self, emb_a, emb_b):
+        """Symmetric InfoNCE with learned temperature."""
+        log_temp = self.contrastive_log_temp.clamp(-4.6, 2.3)
+        temp = log_temp.exp()
+        logits = torch.matmul(emb_a, emb_b.T) / temp
+        labels = torch.arange(logits.size(0), device=logits.device)
+        return (F.cross_entropy(logits, labels) + F.cross_entropy(logits.T, labels)) / 2
+
+    def get_retrieval_embedding(
+        self,
+        pixel_values: torch.FloatTensor,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.Tensor,
+        num_patches_list: Optional[list] = None,
+    ) -> torch.Tensor:
+        """Encode image+text through ViT→MLP→LLM→RetrievalHead → 256-dim vector.
+
+        The LLM sees visual tokens (from the rendered image) interleaved with
+        text tokens (the description/query).  We take the hidden state at the
+        last non-padding position as the sequence representation.
+        """
+        # 1. Extract visual features and project to LLM space
+        vit_embeds = self.extract_feature(pixel_values)  # (num_images, N_vis, C_llm)
+
+        # 2. Build input embeddings: replace <IMG_CONTEXT> tokens with visual features
+        input_embeds = self.language_model.get_input_embeddings()(input_ids).clone()
+        B, N, C = input_embeds.shape
+        input_embeds_flat = input_embeds.reshape(B * N, C)
+        input_ids_flat = input_ids.reshape(B * N)
+
+        if self.img_context_token_id is not None:
+            selected = (input_ids_flat == self.img_context_token_id)
+            if selected.any():
+                vit_flat = vit_embeds.reshape(-1, C)
+                n_token = selected.sum()
+                input_embeds_flat[selected] = input_embeds_flat[selected] * 0.0 + vit_flat[:n_token]
+
+        input_embeds = input_embeds_flat.reshape(B, N, C)
+
+        # 3. Run LLM
+        outputs = self.language_model(
+            inputs_embeds=input_embeds,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+            return_dict=True,
+        )
+
+        # 4. Take last hidden state at last real token position
+        last_hidden = outputs.hidden_states[-1]  # (B, N, C_llm)
+        # Find position of last non-padding token per sample
+        seq_lens = attention_mask.sum(dim=1) - 1  # (B,) indices of last token
+        batch_idx = torch.arange(B, device=last_hidden.device)
+        eos_hidden = last_hidden[batch_idx, seq_lens.long()]  # (B, C_llm)
+
+        # 5. Project to shared 256-dim space
+        return self.retrieval_head(eos_hidden)
+
+    def multimodal_contrastive_forward(
+        self,
+        pixel_values: torch.FloatTensor,
+        texture_pixel_values: torch.FloatTensor,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.Tensor,
+        num_patches_list: Optional[list] = None,
+        alpha: float = 1.0,
+        beta: float = 1.0,
+    ) -> dict:
+        """Two-path contrastive loss:
+          L_visual     = SymInfoNCE(img_emb, tex_emb)        — ViT path
+          L_multimodal = SymInfoNCE(query_emb, tex_emb)      — LLM path
+          L_total      = alpha * L_visual + beta * L_multimodal
+        """
+        # Path A: visual contrastive (ViT only, no LLM)
+        img_emb = self.get_cls_embedding(pixel_values)           # (B, 256)
+        tex_emb = self.get_cls_embedding(texture_pixel_values)   # (B, 256)
+        loss_visual = self._sym_infonce(img_emb, tex_emb)
+
+        # Path B: multimodal contrastive (ViT + LLM → RetrievalHead)
+        query_emb = self.get_retrieval_embedding(
+            pixel_values, input_ids, attention_mask, num_patches_list
+        )  # (B, 256)
+        loss_multimodal = self._sym_infonce(query_emb, tex_emb)
+
+        loss_total = alpha * loss_visual + beta * loss_multimodal
+
+        return {
+            'loss': loss_total,
+            'loss_visual': loss_visual.detach(),
+            'loss_multimodal': loss_multimodal.detach(),
+        }
 
     def batch_chat(self, tokenizer, pixel_values, questions, generation_config, num_patches_list=None,
                    history=None, return_history=False, IMG_START_TOKEN='<img>', IMG_END_TOKEN='</img>',
