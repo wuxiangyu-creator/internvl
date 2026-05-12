@@ -627,7 +627,7 @@ around 0.07--0.15 depending on the effective batch size.
 \centering
 \caption{Architectural ablations on the in-domain benchmark (gallery=1{,}950).}
 \label{tab:ablation-arch}
-\small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
 Variant                                & R@1  & R@5  & MRR  & RMR  \\
@@ -636,7 +636,8 @@ Stage 1: Frozen ViT + head             & 11.0 & 31.0 & .216 & .212 \\
 Stage 1: Unfrozen ViT + head (default) & 40.0 & 79.4 & .575 & .590 \\
 Stage 1: Unfrozen ViT, \emph{no head}  & 37.6 & 73.6 & .540 & .551 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \subsection{Ablation Group 2: Generalisation Robustness}
@@ -660,7 +661,7 @@ should be paired with a re-ranking stage or a stronger backbone.
 \caption{Stage~1 visual retrieval as gallery size grows.
          Distractors are sampled at random from the training pool.}
 \label{tab:ablation-gallery}
-\small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
 Gallery & R@1 & R@5 & R@10 & RMR \\
@@ -672,7 +673,8 @@ Gallery & R@1 & R@5 & R@10 & RMR \\
 10{,}000 & 10.8 & 51.2 & 66.3 & .300 \\
 19{,}568 & 7.0  & 31.1 & 51.5 & .191 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \paragraph{A2.2 Caption-quality robustness (key finding).}
@@ -694,7 +696,7 @@ We re-encode the multimodal query under four caption regimes
 \caption{Stage~2 multimodal retrieval under different caption regimes.
          Shuffled = wrong (but in-distribution) caption assigned to each query.}
 \label{tab:ablation-caption}
-\small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
 Caption regime & R@1 & R@5 & MRR & RMR \\
@@ -704,7 +706,8 @@ truncated (10 words)      & 25.6 & 61.3 & .388 & .428 \\
 generic (``a material texture'') & 23.9 & 57.1 & .366 & .402 \\
 shuffled (wrong caption)  & 24.8 & 56.1 & .369 & .399 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 The result is striking and informative:
@@ -756,7 +759,7 @@ OOD gallery as candidates.
          substantially on OOD textures, while Stage 1 visual retains much of
          its in-domain capability.}}
 \label{tab:ood}
-\small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lrrrrr@{}}
 \toprule
 Method                   & R@1  & R@5  & R@10 & MRR  & RMR  \\
@@ -766,7 +769,8 @@ Stage~2 multimodal       &  6.3 & 28.9 & 44.1 & .183 & .178 \\
 \midrule
 $\Delta$ (Stage~2 $-$ Stage~1) & $-$14.7 & $-$37.2 & $-$32.3 & $-$.220 & $-$.247 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \paragraph{Finding: Stage~2 multimodal degrades sharply OOD.}
@@ -788,7 +792,7 @@ slightly outside this distribution, the multimodal signal becomes noise.
 \caption{Per-category OOD results (R@1 in \%, RMR-Score). Stage~2 multimodal
          is worse than Stage~1 visual on every category.}
 \label{tab:ood-per-cat}
-\small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lrrrrr@{}}
 \toprule
 Category & $n$ & \multicolumn{2}{c}{Stage~1 visual} & \multicolumn{2}{c}{Stage~2 multimodal} \\
@@ -806,7 +810,8 @@ UGC\_terrain               &  48 &  6.2 & .176 &  6.2 & .189 \\
 \midrule
 \textbf{Overall}           & \textbf{381} & \textbf{21.0} & \textbf{.425} & \textbf{6.3} & \textbf{.178} \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \paragraph{Implication for deployment.}
@@ -839,7 +844,7 @@ strong zero-shot visual backbones.
          \emph{ReTR loses to all generic visual backbones; the strongest
          transfer model is DINOv2-large.}}
 \label{tab:crossds}
-\small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lrrrrr@{}}
 \toprule
 Method                                   & R@1  & R@5  & R@10 & MRR  & RMR  \\
@@ -854,7 +859,8 @@ SigLIP-SO400M-384~\cite{zhai2023siglip}  & 22.2 & 70.4 & 82.4 & .437 & .455 \\
 ReTR Stage~1 (visual)                    & 11.3 & 40.9 & 52.4 & .259 & .260 \\
 ReTR Stage~2 (multimodal)                &  6.9 & 24.0 & 35.3 & .160 & .156 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \paragraph{Finding: ReTR loses to generic backbones on cross-dataset queries.}
@@ -874,7 +880,7 @@ a clear specialisation--robustness gradient:
 \caption{Three-tier generalisation summary (R@1 in \%; rank within method
          class).}
 \label{tab:three-tier}
-\small
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lrrr@{}}
 \toprule
 Method                & In-domain   & In-library OOD & Cross-dataset \\
@@ -885,7 +891,8 @@ DINOv2-large          &  1.9 & --- & \textbf{30.0} \\
 \textbf{ReTR Stage 1} & \textbf{40.0} & \textbf{21.0} &  11.3 \\
 \textbf{ReTR Stage 2} & \textbf{48.9} &  6.3 &   6.9 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 ReTR is the strongest model on the data it was trained for, but its
