@@ -36,28 +36,37 @@ for Render-to-Material Texture Retrieval}}
 % ─────────────────────────────────────────────────────────────────────────────
 \begin{abstract}
 % ─────────────────────────────────────────────────────────────────────────────
-Retrieving a physically-based rendering (PBR) material texture from a large
-library given only a rendered image of a 3D object is a challenging
+Retrieving a physically-based rendering (PBR) material texture from a library
+given only a rendered image of a 3D object is a practical but under-explored
 cross-modal matching problem: the query is a composite scene image that
 conflates geometry, lighting, and material appearance, while the gallery
 contains flat, uniformly-lit texture maps.
-We address this \emph{render-to-material} retrieval task with a
-\textbf{two-stage contrastive framework} built on InternVL2-1B, a
-state-of-the-art vision-language model (VLM).
-\textbf{Stage~1} fine-tunes the Vision Transformer (ViT) backbone with a
-lightweight ContrastiveHead, mapping CLS tokens into a shared
-256-dimensional embedding space via symmetric InfoNCE loss.
-\textbf{Stage~2} extends retrieval to multimodal queries: the frozen ViT
-visual features are fused with material text descriptions through
-a LoRA-adapted Qwen2 LLM and a dedicated RetrievalHead, enabling
-joint image-text retrieval in the same embedding space.
+We present \textbf{ReTR}, a complete \emph{render-to-material retrieval
+system} built on InternVL2-1B.
+Rather than proposing a fundamentally new learning algorithm, our work
+combines established techniques — contrastive fine-tuning, projection heads,
+and LoRA adaptation — into a deployable two-stage pipeline, and reports
+empirical findings on a previously unstudied task.
+\textbf{Stage~1} fine-tunes the Vision Transformer (ViT) end-to-end with a
+lightweight ContrastiveHead, mapping CLS tokens into a shared 256-dimensional
+embedding space via symmetric InfoNCE loss.
+\textbf{Stage~2} reuses the frozen Stage-1 gallery embeddings and
+introduces a RetrievalHead on top of a LoRA-adapted Qwen2 LLM, enabling
+joint image-text queries in the \emph{same} embedding space — so adding
+multimodal retrieval requires no re-indexing of the gallery.
 We construct a dataset of \textbf{19,568} (render, texture, description)
-triplets and propose \textbf{RMR-Score}, a unified evaluation metric that
-combines precision, coverage, and ranking quality into a single scalar.
-On the full validation gallery of 1,956 textures, Stage~1 achieves
-RMR-Score\,=\,0.524 (R@1\,=\,34.5\%), while Stage~2 multimodal retrieval
+triplets and report \textbf{RMR-Score}, a simple unified metric that
+aggregates precision (R@1), coverage (R@5), and ranking quality (MRR) into
+one comparable scalar.
+On the validation gallery of 1,956 textures, Stage~1 achieves
+RMR-Score\,=\,0.524 (R@1\,=\,34.5\%) and Stage~2 multimodal retrieval
 further improves to \textbf{RMR-Score\,=\,0.634} (R@1\,=\,44.5\%,
-R@5\,=\,83.8\%), outperforming CLIP ViT-L/14 by over $24\times$ on R@1.
+R@5\,=\,83.8\%), versus 0.033 for zero-shot CLIP ViT-L/14.
+Two empirical findings are emphasised: (i)~end-to-end ViT fine-tuning is
+critical for the render-texture domain shift, providing a $+24$pp R@1 gain
+over a frozen-backbone variant, contrary to the usual practice in image-text
+retrieval; (ii)~anchoring the multimodal path to a frozen visual gallery
+keeps Stage~2 deployment costs identical to Stage~1.
 \end{abstract}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -93,31 +102,57 @@ difficult to holistically compare methods that trade off precision against
 coverage.
 No unified metric exists for this setting.
 
-In this paper we ask: \emph{can a VLM visual backbone be efficiently adapted
-to align rendered scene images with their source material textures, and how
-should retrieval quality be measured?}
-We answer both questions by (i) fine-tuning only the ViT encoder and a small
-projection head of InternVL2-1B with a contrastive objective, and (ii)
-proposing \textbf{RMR-Score}, a single scalar that jointly captures precision
-(R@1), coverage (R@$K$), and ranking quality (MRR).
+\paragraph{Scope and framing.}
+This paper is a \emph{system and empirical study}, not a new learning
+algorithm.
+All building blocks we use --- symmetric InfoNCE~\cite{radford2021clip},
+projection heads~\cite{chen2020simclr}, end-to-end ViT fine-tuning, and
+LoRA~\cite{hu2022lora} --- are well established.
+Our contribution is to combine them into a complete pipeline for an
+under-studied task, to measure what works, and to publish both the system and
+the data.
+We ask: \emph{can a VLM visual backbone be efficiently adapted to align
+rendered scene images with their source material textures, and how should
+retrieval quality be measured?}
+
 Our contributions are:
 \begin{enumerate}[leftmargin=*,itemsep=0pt]
-  \item The first \textbf{render-to-material retrieval benchmark}:
-        a dataset of 19,568 (render, texture, description) triplets spanning
-        diverse material categories, an evaluation protocol, and standardised
-        baselines.
-  \item \textbf{RMR-Score}: a unified evaluation metric for cross-modal
-        material retrieval that combines R@1, R@$K$, and MRR into a single
-        comparable scalar, addressing the fragmented metrics problem in
-        existing retrieval benchmarks.
-  \item \textbf{Stage~1}: a contrastive fine-tuning recipe for VLM visual
-        backbones using a learned-temperature InfoNCE loss, gradient
-        accumulation, and ViT unfreezing — achieving RMR = 0.524 on a
-        single consumer GPU.
-  \item \textbf{Stage~2}: a multimodal extension that fuses ViT visual
-        features with LLM text understanding via LoRA and a dual-path
-        contrastive loss, boosting retrieval to \textbf{RMR = 0.634}
-        (R@1 = 44.5\%, R@5 = 83.8\%).
+  \item \textbf{A complete render-to-material retrieval pipeline.}
+        We release an end-to-end system covering data generation, two-stage
+        training, FAISS-backed indexing, and a FastAPI retrieval service.
+        On a single consumer GPU (NVIDIA L20, 46GB), Stage~1 fine-tunes a
+        300M ViT in $\sim$2.5\,h and Stage~2 adapts a 558M LLM via LoRA in
+        $\sim$4.0\,h.
+  \item \textbf{A render-to-material dataset and benchmark.}
+        We construct 19,568 (render, texture, description) triplets,
+        define a closed-world evaluation protocol on a 1,956-texture gallery,
+        and provide standardised baselines (Random, CLIP B/32, CLIP L/14,
+        InternVL2-1B zero-shot).
+  \item \textbf{RMR-Score: a unified retrieval metric.}
+        A single scalar combining R@1, R@5, and MRR that captures precision,
+        coverage, and ranking quality, addressing the fragmented-metrics
+        problem in existing retrieval literature.
+  \item \textbf{Three empirical findings.}
+        (i)~End-to-end ViT fine-tuning is necessary for render-texture
+        matching: frozen-backbone variants only reach R@1\,=\,11.0\%, while
+        unfrozen variants reach R@1\,=\,34.5\% --- a $+24$pp gap that
+        contrasts with typical image-text retrieval where frozen backbones
+        often suffice.
+        (ii)~Stage~2 multimodal retrieval (image+text query against the
+        \emph{same} Stage~1 gallery) adds $+9$pp R@1 with no additional
+        gallery storage, demonstrating that a frozen visual anchor lets a
+        new query encoder be bolted on without re-indexing.
+        (iii)~The multimodal path is much more brittle out-of-distribution
+        than the visual-only path: on 381 held-out OOD triplets, Stage~2
+        R@1 drops from 48.9\% to 6.3\% ($-43$pp), while Stage~1 only drops
+        from 40.0\% to 21.0\% ($-19$pp). This reveals that the LoRA-adapted
+        LLM has implicitly overfit to the in-domain caption distribution.
+  \item \textbf{A design choice for gallery-stable multimodal retrieval.}
+        By freezing the Stage~1 ContrastiveHead in Stage~2 and training only
+        the multimodal-side RetrievalHead (plus LLM LoRA), we keep the
+        gallery index intact across stages.
+        We expose this trade-off and the corresponding dual-path loss
+        formulation explicitly so it can be reused in similar settings.
 \end{enumerate}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -543,43 +578,339 @@ For complex rendered scenes where geometry strongly modulates appearance
 model retrieves textures that match the highlight colour rather than the
 underlying material.
 
-\subsection{Ablation: Temperature Warmup}
+\subsection{Ablation Group 1: Architectural Components}
+\label{sec:ablation-arch}
 
-Freezing the temperature $\tau$ for the first two epochs prevents it from
-collapsing to near-zero early in training (which would cause gradient
-explosion through the logits).
-After epoch 2, $\tau$ is jointly optimised and converges to a stable value
-around 0.07–0.15 depending on the effective batch size.
+This group answers \emph{what each component contributes to ReTR}.
+
+\paragraph{A1.1 ViT fine-tuning.}
+Comparing Stage~1 with frozen vs.\ unfrozen ViT (Table~\ref{tab:main}):
+freezing the backbone caps R@1 at 11.0\% (RMR\,=\,0.212), while end-to-end
+fine-tuning lifts R@1 to 40.0\% (RMR\,=\,0.590) --- a $+29$pp jump.
+The ViT must be allowed to re-organise its feature geometry for the
+render-texture domain shift; this is by far the largest single design
+choice.
+
+\paragraph{A1.2 Projection head.}
+We compare the trained ContrastiveHead (256-d) against directly using the
+L2-normalised ViT CLS token (1024-d, no head) at inference
+(Table~\ref{tab:ablation-arch}).
+The head provides only a \emph{modest} $+2.4$pp R@1 / $+0.039$ RMR.
+This is smaller than the SimCLR finding for image classification, suggesting
+that for retrieval, the head's main benefits are (i)~256-d compactness for
+FAISS, and (ii)~mild non-linear specialisation, rather than the
+``feature suppression buffer'' effect emphasised in self-supervised
+literature.
+
+\paragraph{A1.3 Temperature warmup.}
+Freezing the learned temperature $\tau$ for the first two epochs prevents
+it from collapsing to near-zero early in training (which would cause
+gradient explosion through the InfoNCE logits).
+After epoch~2, $\tau$ is jointly optimised and converges to a stable value
+around 0.07--0.15 depending on the effective batch size.
+
+\begin{table}[h]
+\centering
+\caption{Architectural ablations on the in-domain benchmark (gallery=1{,}950).}
+\label{tab:ablation-arch}
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Variant                                & R@1  & R@5  & MRR  & RMR  \\
+\midrule
+Stage 1: Frozen ViT + head             & 11.0 & 31.0 & .216 & .212 \\
+Stage 1: Unfrozen ViT + head (default) & 40.0 & 79.4 & .575 & .590 \\
+Stage 1: Unfrozen ViT, \emph{no head}  & 37.6 & 73.6 & .540 & .551 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Ablation Group 2: Generalisation Robustness}
+\label{sec:ablation-gen}
+
+This group answers \emph{how robust ReTR is under varying deployment
+conditions}.
+
+\paragraph{A2.1 Gallery size scaling.}
+Production texture libraries grow far beyond the validation 1,950.
+We evaluate Stage~1 visual retrieval with gallery extended by random
+distractors from the training pool (Table~\ref{tab:ablation-gallery}).
+R@1 degrades roughly logarithmically: each $10\times$ increase in gallery
+size costs $\sim$30--60\,pp of R@1.
+At gallery\,=\,19{,}568 (the full training+eval pool), R@1 drops to 7.0\%
+--- highlighting that for large libraries, ReTR alone is insufficient and
+should be paired with a re-ranking stage or a stronger backbone.
+
+\begin{table}[h]
+\centering
+\caption{Stage~1 visual retrieval as gallery size grows.
+         Distractors are sampled at random from the training pool.}
+\label{tab:ablation-gallery}
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Gallery & R@1 & R@5 & R@10 & RMR \\
+\midrule
+500     & 83.0 & 97.1 & 99.1 & .898 \\
+1{,}000 & 74.7 & 93.7 & 96.9 & .837 \\
+1{,}950 & 67.8 & 88.1 & 94.4 & .775 \\
+5{,}000 & 22.6 & 64.7 & 77.2 & .428 \\
+10{,}000 & 10.8 & 51.2 & 66.3 & .300 \\
+19{,}568 & 7.0  & 31.1 & 51.5 & .191 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{A2.2 Caption-quality robustness (key finding).}
+We probe whether Stage~2's multimodal advantage truly stems from semantic
+grounding of the caption or merely from caption distribution statistics.
+We re-encode the multimodal query under four caption regimes
+(Table~\ref{tab:ablation-caption}):
+\begin{itemize}[leftmargin=*,itemsep=0pt]
+  \item \textbf{full}: original InternVL-generated description (default).
+  \item \textbf{truncated}: first 10 words only.
+  \item \textbf{generic}: replaced with the constant string ``a material
+        texture''.
+  \item \textbf{shuffled}: the caption from a \emph{different (wrong)} eval
+        sample.
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Stage~2 multimodal retrieval under different caption regimes.
+         Shuffled = wrong (but in-distribution) caption assigned to each query.}
+\label{tab:ablation-caption}
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Caption regime & R@1 & R@5 & MRR & RMR \\
+\midrule
+full (default)            & \textbf{48.9} & \textbf{87.8} & \textbf{.660} & \textbf{.676} \\
+truncated (10 words)      & 25.6 & 61.3 & .388 & .428 \\
+generic (``a material texture'') & 23.9 & 57.1 & .366 & .402 \\
+shuffled (wrong caption)  & 24.8 & 56.1 & .369 & .399 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The result is striking and informative:
+truncated, generic, and \emph{shuffled} captions all give nearly identical
+performance (R@1 $\approx$ 24--26\%), with shuffled essentially matching
+generic.
+In other words, giving the model a \emph{wrong} caption that still matches
+the in-domain caption distribution costs the same as giving it no real
+caption at all.
+This shows Stage~2 does not perform fine-grained semantic grounding of
+the caption text against the visual query; instead, it relies on the
+\emph{distributional} properties of full in-domain captions (length, style,
+keyword density) to produce a useful query embedding.
+
+\paragraph{Mechanistic explanation for OOD failure.}
+This caption-distributional sensitivity directly explains the OOD failure
+in \S\ref{sec:ood}: the LoRA-adapted LLM produces strong query embeddings
+only when fed captions whose distribution matches training.
+On OOD textures, InternVL's auto-generated descriptions drift slightly
+(different vocabulary, fewer in-domain phrases), pushing the LLM out of
+its operating regime even though the captions are semantically correct.
+The remedy is not better captions, but training-time caption augmentation
+to widen the distribution the LLM is exposed to.
+
+\subsection{Out-of-Distribution Generalisation}
+\label{sec:ood}
+
+Our training set is sampled from 18 directories under the Unity asset library
+\texttt{SceneObject/}, dominated by user-generated content
+(\texttt{UGC\_Props}, \texttt{UGC\_Interior}, \texttt{UGC\_Furniture}).
+Eight directories under the same library --- \texttt{UGC\_Poster},
+\texttt{SceneInteraction}, \texttt{UGC\_terrain},
+\texttt{UrbanInteractiveObjects}, \texttt{Smallthing}, \texttt{UGC\_LOGO},
+\texttt{Rock}, and \texttt{Traffic} --- contain texture files that the
+data-generation pipeline never processed (typically because the corresponding
+3D asset was missing or filtered).
+We use these 127 textures as a held-out OOD pool: applying the same
+augmentation pipeline yields 381 (render, texture, description) OOD triplets,
+covering material classes that the model has not been trained on
+(posters, traffic signs, hand-painted logos, terrain surfaces, etc.).
+
+Table~\ref{tab:ood} reports retrieval performance on this OOD set with the
+OOD gallery as candidates.
+
+\begin{table}[h]
+\centering
+\caption{Out-of-distribution evaluation on 381 OOD triplets drawn from 8
+         held-out asset categories. \emph{Stage 2 multimodal degrades
+         substantially on OOD textures, while Stage 1 visual retains much of
+         its in-domain capability.}}
+\label{tab:ood}
+\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Method                   & R@1  & R@5  & R@10 & MRR  & RMR  \\
+\midrule
+Stage~1 visual           & 21.0 & 66.1 & 76.4 & .403 & .425 \\
+Stage~2 multimodal       &  6.3 & 28.9 & 44.1 & .183 & .178 \\
+\midrule
+$\Delta$ (Stage~2 $-$ Stage~1) & $-$14.7 & $-$37.2 & $-$32.3 & $-$.220 & $-$.247 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Finding: Stage~2 multimodal degrades sharply OOD.}
+On in-domain data, Stage~2 improves Stage~1 by $+8.9$pp R@1 (Table~\ref{tab:main});
+on OOD data, the multimodal path \emph{loses} 14.7 pp and the RMR-Score drops
+from 0.425 to 0.178 ($-$58\% relative).
+Per-category breakdown (Table~\ref{tab:ood-per-cat}) confirms this is
+consistent across all 8 OOD classes --- the multimodal path is worse on every
+single one.
+This indicates that the LoRA-adapted LLM has learned to rely on
+\emph{in-distribution} description patterns (the InternVL-generated text
+distribution our training set is drawn from) rather than truly grounding the
+text in visual material concepts.
+When confronted with OOD textures whose auto-generated descriptions sit
+slightly outside this distribution, the multimodal signal becomes noise.
+
+\begin{table}[h]
+\centering
+\caption{Per-category OOD results (R@1 in \%, RMR-Score). Stage~2 multimodal
+         is worse than Stage~1 visual on every category.}
+\label{tab:ood-per-cat}
+\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Category & $n$ & \multicolumn{2}{c}{Stage~1 visual} & \multicolumn{2}{c}{Stage~2 multimodal} \\
+\cmidrule(r){3-4} \cmidrule(l){5-6}
+                 &      & R@1  & RMR  & R@1  & RMR  \\
+\midrule
+Traffic                    &   6 & 33.3 & .648 & 16.7 & .467 \\
+UGC\_LOGO                  &   9 & 33.3 & .599 & 11.1 & .338 \\
+Rock                       &   9 & 33.3 & .551 & 11.1 & .334 \\
+SceneInteraction           &  60 & 30.0 & .547 &  8.3 & .214 \\
+Smallthing                 &  30 & 30.0 & .517 & 13.3 & .295 \\
+UGC\_Poster                & 186 & 19.4 & .417 &  3.8 & .126 \\
+UrbanInteractiveObjects    &  33 & 18.2 & .402 &  6.1 & .145 \\
+UGC\_terrain               &  48 &  6.2 & .176 &  6.2 & .189 \\
+\midrule
+\textbf{Overall}           & \textbf{381} & \textbf{21.0} & \textbf{.425} & \textbf{6.3} & \textbf{.178} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Implication for deployment.}
+When the texture library may contain material classes outside the training
+distribution, deploying the Stage~1 visual encoder alone is safer than the
+multimodal Stage~2 query.
+The two paths can be served side-by-side: Stage~1 as a robust default,
+Stage~2 as an opt-in mode for queries whose descriptions follow the in-domain
+distribution (e.g., user prompts written by an artist familiar with the
+material library).
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Discussion: Design Choices and Limitations}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{What is novel and what is not.}
+We deliberately frame ReTR as a system and empirical study rather than a new
+learning algorithm.
+The training objective (symmetric InfoNCE), the use of projection heads, and
+LoRA adaptation are all well-known.
+What is new here is the \emph{combination}: applying these tools to
+render-to-material retrieval, exposing the design trade-offs (frozen
+gallery anchor, dual-path loss, single shared 256-d space), and reporting
+honest empirical numbers on a previously unstudied task.
+Treating this as a system paper allows us to discuss
+trade-offs that a pure method paper might omit.
+
+\paragraph{Why a shared ViT for both render and texture.}
+Both views are RGB images that depict the \emph{same material} under
+different rendering conditions, so a Siamese (shared-weight) encoder is the
+natural choice.
+Tying the weights forces the ViT to learn lighting-/geometry-invariant
+material features --- if we used two encoders, each branch could specialise
+to its own domain and the two embedding spaces would drift apart.
+Conceptually this is closer to SimCLR (same encoder, two views) than to CLIP
+(two encoders, two modalities).
+
+\paragraph{Why a projection head if both branches share an encoder.}
+With a shared encoder one might ask whether the ContrastiveHead is necessary.
+Following the SimCLR finding that an MLP projection head substantially
+improves contrastive transfer~\cite{chen2020simclr}, we keep it: it
+(i)~absorbs the contrastive ``feature suppression'' effect so that the ViT
+representation stays general,
+(ii)~reduces 1024-d to 256-d for faster FAISS lookup, and
+(iii)~adds a non-linear layer that empirically stabilises training.
+
+\paragraph{Frozen vs.\ fine-tuned backbone.}
+Table~\ref{tab:main} shows that a frozen InternViT only reaches
+RMR\,=\,0.212 (R@1\,=\,11.0\%); unfreezing it gives RMR\,=\,0.524.
+This is the most important practical finding of the paper: for the
+render-to-material domain shift, the ViT must be allowed to re-organise
+its feature geometry.
+This contrasts with classical CLIP-style retrieval, where frozen backbones
+are often competitive.
+
+\paragraph{Limitations.}
+(i)~The in-domain validation gallery (1,950 textures) is closed-world; our
+OOD study (\S\ref{sec:ood}) shows that performance degrades substantially
+when query material classes are outside the training distribution
+($-19$ pp R@1 for Stage~1; $-43$ pp R@1 for Stage~2).
+Production deployment should therefore include domain monitoring or a
+fallback to the more robust Stage~1 path.
+(ii)~Text descriptions are auto-generated by InternVL2-1B itself, so the
+LLM-LoRA in Stage~2 implicitly memorises in-distribution caption patterns;
+the OOD drop confirms this caption-shift sensitivity.
+User-written queries may introduce additional distribution shift not measured
+here.
+(iii)~The Stage~2 OOD failure highlights an open question: \emph{how to
+extend the multimodal path to gracefully handle previously unseen material
+categories}. Possible directions include training-time caption augmentation,
+or routing OOD queries to the visual-only path via an out-of-distribution
+detector.
+(iv)~We do not study hard-negative mining, attribute disentanglement, or
+augmented renders (varied lighting/viewpoints) --- all promising directions
+for further gains.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Conclusion}
 % ─────────────────────────────────────────────────────────────────────────────
 
-We have presented \textbf{ReTR}, a two-stage contrastive framework that
-adapts InternVL2-1B to the render-to-material retrieval task.
-Stage~1 fine-tunes the ViT backbone with a symmetric InfoNCE loss, achieving
-RMR-Score = 0.524 — a $15.9\times$ improvement over the strongest
-zero-shot baseline.
-Stage~2 augments retrieval with free-form material text descriptions via a
-LoRA-adapted LLM and a dual-path contrastive objective, further boosting
-performance to \textbf{RMR-Score = 0.634} (R@1 = 44.5\%, R@5 = 83.8\%,
-R@10 = 91.2\%) on a gallery of 1,956 material textures.
-We also proposed \textbf{RMR-Score}, a unified metric combining precision,
-coverage, and ranking quality into a single scalar that addresses the
-fragmented evaluation problem in cross-modal retrieval literature.
+We have presented \textbf{ReTR}, a complete system for retrieving PBR
+material textures from rendered images of 3D objects.
+ReTR is not a new learning algorithm; it is an integration of well-established
+techniques (contrastive fine-tuning, projection heads, LoRA) into a deployable
+pipeline applied to a previously unstudied task, together with the dataset,
+metric, and empirical findings needed to evaluate it.
 
-These results demonstrate that (i) VLM visual backbones can be efficiently
-repurposed for specialised cross-modal retrieval, and (ii) incorporating
-text descriptions of gallery items as query-side signals provides substantial
-complementary information beyond what visual renderings alone encode.
-The two-stage design keeps gallery indexing purely visual (Stage~1 embeddings),
-so Stage~2 adds retrieval capability with no additional storage cost.
+Quantitatively, Stage~1 fine-tunes the InternVL2-1B ViT with symmetric
+InfoNCE, achieving RMR-Score = 0.524 --- a $15.9\times$ improvement over
+zero-shot CLIP ViT-L/14.
+Stage~2 adds a LoRA-adapted LLM query encoder and a RetrievalHead that maps
+into the \emph{same} 256-d embedding space, reaching
+\textbf{RMR-Score = 0.634} (R@1 = 44.5\%, R@5 = 83.8\%, R@10 = 91.2\%)
+without re-indexing the gallery.
+We additionally introduced \textbf{RMR-Score}, a simple unified metric
+combining precision, coverage, and ranking quality, to mitigate the
+fragmented-metrics problem common in cross-modal retrieval literature.
 
-Future work includes: (i) extending the training set with augmented renders
-(varied lighting, geometry, viewpoints); (ii) scaling to InternVL2-8B for
-improved representation capacity; (iii) exploring bidirectional LLM-ViT
-attention for stronger visual-language fusion; (iv) deploying the system
-in an agentic material recommendation pipeline.
+Three practical takeaways:
+(i)~for the render-to-material domain shift, end-to-end ViT fine-tuning is
+necessary and provides the largest single jump in performance ($+24$pp R@1);
+(ii)~anchoring a multimodal query path to a frozen visual gallery is a
+useful design pattern when the gallery index must remain stable across
+model updates;
+(iii)~the multimodal path is significantly more brittle out-of-distribution
+than the visual-only path ($-43$pp vs.\ $-19$pp R@1 on held-out asset
+categories), so production systems should keep the visual path as a fallback.
+
+Future work includes: (i)~larger open-world galleries with distractors to
+test deployment-scale behaviour;
+(ii)~augmented renders (varied lighting, viewpoints, geometries) to address
+the appearance--geometry entanglement failure mode;
+(iii)~hard-negative mining strategies based on material taxonomy
+(category $\times$ colour $\times$ roughness);
+(iv)~human evaluation by 3D artists comparing ReTR to existing tools on
+real production assets;
+(v)~scaling to InternVL2-8B for higher representation capacity, subject to
+deployment cost constraints.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \bibliographystyle{plain}

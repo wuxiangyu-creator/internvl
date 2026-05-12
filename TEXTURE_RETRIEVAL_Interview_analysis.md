@@ -39,6 +39,131 @@
                           FAISS IndexFlatIP 检索
 ```
 
+## 对比学习范式说明（为什么 Stage 1 用共享 ViT）
+
+### 对比学习的本质
+
+对比学习不是定义在"图像+文本"上的，它的核心是：
+
+```
+正样本对 (positive pair)  →  embedding 拉近
+负样本对 (negative pair)  →  embedding 推远
+```
+
+**只要能定义"什么算正对、什么算负对"，就能做对比学习**。具体用什么模态、几个编码器都是工程选择，不是定义。
+
+### 三种典型对比学习范式对比
+
+| 范式 | 输入 | 编码器 | 正对来源 | 代表方法 |
+|---|---|---|---|---|
+| **多模态** | image + text | **不同**（ViT + TextTransformer） | 配对的图文 | CLIP, ALIGN |
+| **同模态自监督** | image_view1 + image_view2 | **共享**（同一 ViT） | 同一图的两个数据增强 | SimCLR, MoCo, BYOL |
+| **同模态跨域**（本项目 Stage 1） | render + texture | **共享**（同一 ViT） | 同一材质的渲染图与贴图 | ReTR Stage 1 |
+
+### 为什么 CLIP 必须双塔？
+
+```
+image: (3, 224, 224)        ← 像素值，连续浮点数
+text:  [101, 2003, ...]     ← token id，离散整数
+```
+
+输入空间根本不同 — ViT 没法处理 token，TextTransformer 没法处理像素。所以 CLIP 必须有两个不同架构的编码器。
+
+### 为什么 SimCLR / ReTR Stage 1 可以单塔？
+
+我们 Stage 1 的两个输入：
+
+```
+render_image:  448×448 RGB  ← 渲染图（有光照、阴影、几何）
+texture_image: 448×448 RGB  ← 贴图（无光照、纯材质）
+```
+
+**两个都是 RGB 图像 — 同模态**，但属于两个不同的"域"：
+- render 域：包含 lighting、geometry、view angle 信息
+- texture 域：纯粹的 albedo / normal / roughness 等材质属性
+
+正对：同一个 material id 的 (render, texture)
+负对：batch 内不同 material id 的所有 (render_i, texture_j)
+
+这是 **SimCLR 范式的扩展**，只是把"两个数据增强 view"换成了"两个语义相关但视觉不同的域 view"。学术上称为 **cross-domain same-modality contrastive learning** 或 **siamese contrastive learning**。
+
+### 共享 ViT 的三大优势
+
+**1. 强迫学到"光照/几何不变"的材质特征**
+
+这是设计上的关键！如果用两个不同的 ViT：
+```
+ViT_render  专门看渲染图 → 可能依赖光影线索
+ViT_texture 专门看贴图   → 可能依赖纹理周期性
+```
+两个特征空间会发散，学不到"材质本质"。
+
+共享 ViT 后：
+```
+同一个 ViT 必须能在 render 上看出"这是哑光木材"
+        也能在 texture 上看出"这是哑光木材"
+```
+**唯一的解就是学到与光照/几何无关的材质本质特征** — 正好是我们想要的。
+
+**2. 参数量减半，训练更稳定**
+
+300M ViT 而不是 600M，单卡 L20 能开更大 batch（更多负样本，InfoNCE 效果更好）。
+
+**3. 推理时 gallery 和 query 共享空间**
+
+因为两路是同一个 ViT，推理时：
+- 离线：用 ViT 编码 N 个 texture，存进 FAISS（gallery）
+- 在线：用**同一个 ViT** 编码 query render，直接做内积搜索
+
+如果两路 ViT 不同，gallery 向量和 query 向量根本不在同一空间，无法比较。
+
+### "这还是对比学习吗？" — 是，而且更纯粹
+
+InfoNCE loss 的形式完全没变：
+```python
+logits = emb_a @ emb_b.T / τ   # B×B 相似度矩阵
+labels = arange(B)              # 对角线是正对
+loss = (CE(logits, labels) + CE(logits.T, labels)) / 2
+```
+
+这个公式不关心 emb_a 和 emb_b 来自哪个编码器、哪种模态。它只关心：
+- 矩阵对角线的相似度要高（正对）
+- 非对角线相似度要低（负对）
+
+所以无论 CLIP（双塔跨模态）、SimCLR（单塔同模态自增强）、还是 ReTR Stage 1（单塔同模态跨域），**都是对比学习** — 只是"正对怎么构造"和"用几个编码器"在变。
+
+### 三种范式架构对比图
+
+```
+       CLIP                      SimCLR                ReTR Stage 1
+  ─────────────              ─────────────            ─────────────
+  image     text              img_aug1   img_aug2     render    texture
+    │        │                   │           │           │         │
+    ▼        ▼                   ▼           ▼           ▼         ▼
+  ┌───┐   ┌─────┐              ┌───┐       ┌───┐       ┌───┐     ┌───┐
+  │ViT│   │Text │              │ViT│       │ViT│       │ViT│     │ViT│
+  └───┘   │TFM  │              └───┘       └───┘       └───┘     └───┘
+    │     └─────┘                │           │           │         │
+    │        │              (共享权重)             (共享权重)
+    ▼        ▼                   ▼           ▼           ▼         ▼
+  ProjI    ProjT                Proj        Proj        Head      Head
+    │        │                   │           │           │         │
+    └──InfoNCE──┘                └─InfoNCE──┘            └─InfoNCE─┘
+   跨模态对比                  自监督同域对比         跨域同模态对比
+```
+
+### 与 SimCLR 的直接类比
+
+| | SimCLR 的"view" | ReTR Stage 1 的"view" |
+|---|---|---|
+| 数据 | 同一图的不同 augmentation | 同一材质的 render 和 texture |
+| 不变性目标 | 对 crop / color / flip 不变 | 对 lighting / geometry / view angle 不变 |
+| 学到的特征 | 视觉对象的本质（不依赖增强） | 材质的本质（不依赖渲染条件） |
+
+**Stage 1 之所以用共享 ViT，不是省事的选择，而是设计上必要的选择** — 因为我们恰好有"天然配对"的两种 view（不需要做数据增强），共享 ViT 既保证了 query 和 gallery 在同一空间可比，也强迫模型学到 render-invariant material representation。
+
+---
+
 ## 两阶段训练方案
 
 ### Stage 1: 纯视觉对比学习
@@ -244,6 +369,119 @@ RMR = (w1 · R@1 + w2 · R@5 + w3 · MRR) / (w1 + w2 + w3)
 | InternVL2-1B (zero-shot) | 0.3 | 1.1 | 1.5 | .011 | 722 | .008 | .008 |
 | Ours (frozen ViT) | 11.0 | 31.0 | 43.3 | .216 | 14 | .253 | .212 |
 | **Ours (unfrozen ViT)** | **34.5** | **71.6** | **81.4** | **.511** | **2** | **.579** | **.524** |
+
+## 项目性质与贡献定位（诚实分析）
+
+> 本节用于面试和论文 framing 时如何客观介绍项目，避免过度包装。
+
+### 技术栈剖析：本质是什么？
+
+把项目剥光了看，技术栈完全由**已有方法**组合而成：
+
+| 组件 | 来源 | 年份 |
+|---|---|---|
+| 预训练 ViT + 投影头 | CLIP / SimCLR | 2020-2021 |
+| ViT 微调（end-to-end） | CLIP fine-tune | 2021 起 |
+| LoRA on LLM | Hu et al. | 2022 |
+| 对称 InfoNCE loss | CLIP | 2021 |
+| 联合 loss = α·L1 + β·L2 | 加权求和 | 通用 |
+| FAISS IndexFlatIP | Meta | 2017 |
+
+**没有任何一个组件是 2024 年之后才发明的新东西**。如果送 ICLR/CVPR review，第一个问题必然是 "What's the technical novelty?"
+
+### 不是 SFT，但很接近：是"contrastive retrieval fine-tuning"
+
+容易被误认为是"大号 SFT"，但实际上 loss 完全不同：
+
+| 类型 | Loss | 训练目标 |
+|---|---|---|
+| SFT (Supervised Fine-Tuning) | `CE(logits, target_tokens)` | 让模型生成正确 token |
+| **本项目（对比检索微调）** | `SymInfoNCE(emb_a, emb_b)` | 让两个向量可比较 |
+
+更准确的工业切口名称：
+
+> **"Contrastive retrieval fine-tuning of a VLM, with auxiliary projection heads."**
+> （用大白话：VLM 上加两个召回头做对比训练）
+
+### 真·小创新（论文里可写）
+
+1. **LLM hidden state 用作 retrieval head 的输入**
+   - 主流图文检索（CLIP / BLIP / SigLIP）从来不用 generative LLM 做 query encoder
+   - 它们用的是 contrastive text encoder
+   - 我们用 Qwen2 (auto-regressive LLM) 的最后 hidden state → 算 1 个微小 novelty
+
+2. **Frozen ContrastiveHead 锚定共享空间**
+   - Stage 2 把 Stage 1 的 ContrastiveHead 冻结，强迫 RetrievalHead 对齐到固定空间
+   - 这样 gallery 不用重新编码，可直接复用 Stage 1 的索引
+   - 半个 novelty（技术不深，但实用且工程上有意义）
+
+3. **应用场景新：render → PBR texture**
+   - 文献里几乎没人做"3D 渲染图 → 材质贴图"检索
+   - 这是 **application novelty**，不是 method novelty
+   - 可写成 "new task / dataset" 角度
+
+### 假·大创新（不要这么吹）
+
+- "We propose a novel contrastive learning framework..." → 你只用了 InfoNCE
+- "Our innovative dual-path architecture..." → 加权求和不是创新
+- "We introduce a parameter-efficient fine-tuning..." → 那是 LoRA
+
+### 投稿期望（诚实评估）
+
+| 会议级别 | 接收概率 | 怎么写 |
+|---|---|---|
+| NeurIPS / ICLR / CVPR | <5% | 除非加非常新的元素 |
+| ECCV / ICCV / AAAI | ~10% | 应用 novelty 拉满 + 完整 benchmark |
+| WACV / BMVC / ACCV | ~30% | 完整故事 + 实验充分 |
+| **Application track / workshop** | ~60% | "把 VLM 应用到游戏材质检索" 叙事 ✅ |
+| arXiv preprint + 工程 demo | 100% | 价值在工程而不在论文 |
+
+### 推荐的论文 framing：System Paper 而非 Method Paper
+
+> **"This is a system paper, not a method paper."**
+
+把论文 framing 调整为 "a complete material retrieval system" 而非 "a novel method"。Application / industry track 反而更适合 — reviewer 不会拿 method novelty 卡你，只看：
+- 系统是否完整
+- 指标是否扎实
+- 是否解决真问题
+
+按这个 framing，可以分以下几个真实贡献点：
+
+1. **Complete pipeline**: 数据生成 → 双阶段训练 → FAISS 部署 → FastAPI 服务
+2. **Real production metrics**: R@1=44.8% 的真实可用指标，已集成到 RAGenLah
+3. **Empirical findings**:
+   - ViT 微调对 render-texture 域是必需的（+24pp 实证）
+   - LoRA r=64 是性能/参数甜点
+   - 文本描述用 LLM 自生成可行，不需要人工标注
+4. **Internal infrastructure value**: MIAO 实验室的材质检索基础设施
+
+### 如果想让它"更高级"（可选改进方向）
+
+如果要往会议投，需要加 1-2 个"看起来新"的元素：
+
+1. **Hard Negative Mining**
+   - 普通 InfoNCE 用 batch 内随机负样本
+   - 改成"材质类别 × 颜色 × 粗糙度"三维聚类的 hard negative
+   - 多一节 "Material-Aware Hard Negative Sampling"
+
+2. **Material Property Disentanglement Loss**
+   - 把 256-d 拆成 64+64+64+64，分别对应 albedo/normal/roughness/metallic
+   - 加正则项让每段只编码对应属性
+   - 多一节 "interpretable embedding space"
+
+3. **Zero-shot 泛化实验**
+   - PBR 数据集训，BlenderKit / Substance 上 zero-shot 测
+   - 跨数据集泛化作为强 evidence
+
+4. **User study**
+   - 找 10 个 3D artist 对比 "我们 vs CLIP" 找材质的速度
+   - 用户偏好 + 时间数据 → application paper 的杀器
+
+### 一句话定位
+
+**"大号 SFT + 两个召回头 + 联合 loss" 是工程上准确的描述**。要硬塞 method novelty 比较吃力，但作为 **system / application paper** 完全够格。论文叙事建议从"提出新方法"切换为"构建完整系统并解决新任务"，reviewer 的预期就对了。
+
+---
 
 ## 数据
 

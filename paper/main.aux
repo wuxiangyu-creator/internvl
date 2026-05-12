@@ -19,7 +19,11 @@
 \citation{radford2021clip}
 \citation{li2022blip}
 \citation{chen2024internvl}
+\citation{radford2021clip}
+\citation{chen2020simclr}
+\citation{hu2022lora}
 \@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Scope and framing.}{1}{section*.2}\protected@file@percent }
 \citation{chen2020simclr}
 \citation{he2020moco}
 \citation{radford2021clip}
@@ -30,61 +34,91 @@
 \citation{bell2015material}
 \citation{radford2021clip}
 \@writefile{toc}{\contentsline {section}{\numberline {2}Related Work}{2}{section.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Contrastive Representation Learning.}{2}{section*.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Vision-Language Model Backbones.}{2}{section*.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Parameter-Efficient Fine-Tuning.}{2}{section*.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Image-Based Material Retrieval.}{2}{section*.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Retrieval Evaluation Metrics.}{2}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Contrastive Representation Learning.}{2}{section*.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Vision-Language Model Backbones.}{2}{section*.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Parameter-Efficient Fine-Tuning.}{2}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Image-Based Material Retrieval.}{2}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Retrieval Evaluation Metrics.}{2}{section*.7}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {3}RMR-Score: A Unified Retrieval Metric}{2}{section.3}\protected@file@percent }
 \newlabel{sec:rmr}{{3}{2}{RMR-Score: A Unified Retrieval Metric}{section.3}{}}
-\newlabel{eq:rmr}{{1}{2}{RMR-Score: A Unified Retrieval Metric}{equation.3.1}{}}
-\@writefile{toc}{\contentsline {paragraph}{Properties.}{2}{section*.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4}Dataset}{2}{section.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Data Collection}{2}{subsection.4.1}\protected@file@percent }
+\newlabel{eq:rmr}{{1}{3}{RMR-Score: A Unified Retrieval Metric}{equation.3.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Properties.}{3}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Dataset}{3}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Data Collection}{3}{subsection.4.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Statistics}{3}{subsection.4.2}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Dataset splits.\relax }}{3}{table.caption.8}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Dataset splits.\relax }}{3}{table.caption.9}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{tab:dataset}{{1}{3}{Dataset splits.\relax }{table.caption.8}{}}
+\newlabel{tab:dataset}{{1}{3}{Dataset splits.\relax }{table.caption.9}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {5}Method}{3}{section.5}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Stage 1: Visual Contrastive Alignment}{3}{subsection.5.1}\protected@file@percent }
 \newlabel{sec:stage1}{{5.1}{3}{Stage 1: Visual Contrastive Alignment}{subsection.5.1}{}}
 \newlabel{eq:head}{{2}{3}{Stage 1: Visual Contrastive Alignment}{equation.5.2}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Stage 2: Multimodal Retrieval}{3}{subsection.5.2}\protected@file@percent }
 \newlabel{sec:stage2}{{5.2}{3}{Stage 2: Multimodal Retrieval}{subsection.5.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Two-stage system overview. \emph  {Stage\nobreakspace  {}1 (visual path, top)}: both the rendered query and the texture gallery item pass through the shared ViT backbone and ContrastiveHead. \emph  {Stage\nobreakspace  {}2 (multimodal path, bottom)}: the query image and its text description are fused by the LoRA-adapted LLM; the final hidden state feeds a RetrievalHead that maps into the same 256-dim embedding space as Stage\nobreakspace  {}1, enabling image-only and image+text queries against the same gallery index.\relax }}{3}{figure.caption.9}\protected@file@percent }
-\newlabel{fig:arch}{{1}{3}{Two-stage system overview. \emph {Stage~1 (visual path, top)}: both the rendered query and the texture gallery item pass through the shared ViT backbone and ContrastiveHead. \emph {Stage~2 (multimodal path, bottom)}: the query image and its text description are fused by the LoRA-adapted LLM; the final hidden state feeds a RetrievalHead that maps into the same 256-dim embedding space as Stage~1, enabling image-only and image+text queries against the same gallery index.\relax }{figure.caption.9}{}}
-\@writefile{toc}{\contentsline {paragraph}{Architecture.}{3}{section*.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Architecture.}{3}{section*.11}\protected@file@percent }
 \newlabel{eq:rethead}{{3}{3}{Architecture}{equation.5.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{LoRA Adapters.}{3}{section*.11}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Dual-Path Training Objective}{3}{subsection.5.3}\protected@file@percent }
-\newlabel{sec:dualloss}{{5.3}{3}{Dual-Path Training Objective}{subsection.5.3}{}}
-\newlabel{eq:loss}{{4}{3}{Dual-Path Training Objective}{equation.5.4}{}}
 \citation{loshchilov2019adamw}
-\citation{johnson2021faiss}
-\citation{radford2021clip}
-\citation{radford2021clip}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Two-stage system overview. \emph  {Stage\nobreakspace  {}1 (visual path, top)}: both the rendered query and the texture gallery item pass through the shared ViT backbone and ContrastiveHead. \emph  {Stage\nobreakspace  {}2 (multimodal path, bottom)}: the query image and its text description are fused by the LoRA-adapted LLM; the final hidden state feeds a RetrievalHead that maps into the same 256-dim embedding space as Stage\nobreakspace  {}1, enabling image-only and image+text queries against the same gallery index.\relax }}{4}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:arch}{{1}{4}{Two-stage system overview. \emph {Stage~1 (visual path, top)}: both the rendered query and the texture gallery item pass through the shared ViT backbone and ContrastiveHead. \emph {Stage~2 (multimodal path, bottom)}: the query image and its text description are fused by the LoRA-adapted LLM; the final hidden state feeds a RetrievalHead that maps into the same 256-dim embedding space as Stage~1, enabling image-only and image+text queries against the same gallery index.\relax }{figure.caption.10}{}}
+\@writefile{toc}{\contentsline {paragraph}{LoRA Adapters.}{4}{section*.12}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Dual-Path Training Objective}{4}{subsection.5.3}\protected@file@percent }
+\newlabel{sec:dualloss}{{5.3}{4}{Dual-Path Training Objective}{subsection.5.3}{}}
+\newlabel{eq:loss}{{4}{4}{Dual-Path Training Objective}{equation.5.4}{}}
 \newlabel{eq:dualloss}{{6}{4}{Dual-Path Training Objective}{equation.5.6}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Training Setup}{4}{subsection.5.4}\protected@file@percent }
 \@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces Two-Stage ReTR Training\relax }}{4}{algorithm.1}\protected@file@percent }
 \newlabel{alg:train}{{1}{4}{Two-Stage ReTR Training\relax }{algorithm.1}{}}
-\@writefile{toc}{\contentsline {paragraph}{Stage-1 ViT Freezing.}{4}{section*.12}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Image Pre-processing.}{4}{section*.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Inference.}{4}{section*.14}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6}Experiments}{4}{section.6}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Evaluation Protocol}{4}{subsection.6.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Main Results}{4}{subsection.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Key observations.}{4}{section*.16}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Retrieval results on the validation set (gallery size = 1{,}956). R@$K$ in \%; MRR, nDCG, MAP $\in [0,1]$; MedR = median rank ($\downarrow $); rSum = R@1+R@5+R@10 ($\uparrow $); RMR = proposed unified metric ($\uparrow $). Best results in \textbf  {bold}. $\dagger $ uses image+text query.\relax }}{5}{table.caption.15}\protected@file@percent }
-\newlabel{tab:main}{{2}{5}{Retrieval results on the validation set (gallery size = 1{,}956). R@$K$ in \%; MRR, nDCG, MAP $\in [0,1]$; MedR = median rank ($\downarrow $); rSum = R@1+R@5+R@10 ($\uparrow $); RMR = proposed unified metric ($\uparrow $). Best results in \textbf {bold}. $\dagger $ uses image+text query.\relax }{table.caption.15}{}}
+\@writefile{toc}{\contentsline {paragraph}{Stage-1 ViT Freezing.}{4}{section*.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Image Pre-processing.}{4}{section*.14}\protected@file@percent }
+\citation{johnson2021faiss}
+\citation{radford2021clip}
+\citation{radford2021clip}
+\@writefile{toc}{\contentsline {paragraph}{Inference.}{5}{section*.15}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6}Experiments}{5}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1}Evaluation Protocol}{5}{subsection.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2}Main Results}{5}{subsection.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Key observations.}{5}{section*.17}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.3}Metric Comparison}{5}{subsection.6.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.4}Qualitative Analysis}{5}{subsection.6.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Same-family confusion.}{5}{section*.17}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Appearance–geometry entanglement.}{5}{section*.18}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Ablation: Temperature Warmup}{5}{subsection.6.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusion}{5}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Same-family confusion.}{5}{section*.18}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Appearance–geometry entanglement.}{5}{section*.19}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.5}Ablation Group 1: Architectural Components}{5}{subsection.6.5}\protected@file@percent }
+\newlabel{sec:ablation-arch}{{6.5}{5}{Ablation Group 1: Architectural Components}{subsection.6.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{A1.1 ViT fine-tuning.}{5}{section*.20}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{A1.2 Projection head.}{5}{section*.21}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Retrieval results on the validation set (gallery size = 1{,}956). R@$K$ in \%; MRR, nDCG, MAP $\in [0,1]$; MedR = median rank ($\downarrow $); rSum = R@1+R@5+R@10 ($\uparrow $); RMR = proposed unified metric ($\uparrow $). Best results in \textbf  {bold}. $\dagger $ uses image+text query.\relax }}{6}{table.caption.16}\protected@file@percent }
+\newlabel{tab:main}{{2}{6}{Retrieval results on the validation set (gallery size = 1{,}956). R@$K$ in \%; MRR, nDCG, MAP $\in [0,1]$; MedR = median rank ($\downarrow $); rSum = R@1+R@5+R@10 ($\uparrow $); RMR = proposed unified metric ($\uparrow $). Best results in \textbf {bold}. $\dagger $ uses image+text query.\relax }{table.caption.16}{}}
+\@writefile{toc}{\contentsline {paragraph}{A1.3 Temperature warmup.}{6}{section*.22}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Architectural ablations on the in-domain benchmark (gallery=1{,}950).\relax }}{6}{table.caption.23}\protected@file@percent }
+\newlabel{tab:ablation-arch}{{3}{6}{Architectural ablations on the in-domain benchmark (gallery=1{,}950).\relax }{table.caption.23}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.6}Ablation Group 2: Generalisation Robustness}{6}{subsection.6.6}\protected@file@percent }
+\newlabel{sec:ablation-gen}{{6.6}{6}{Ablation Group 2: Generalisation Robustness}{subsection.6.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{A2.1 Gallery size scaling.}{6}{section*.24}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Stage\nobreakspace  {}1 visual retrieval as gallery size grows. Distractors are sampled at random from the training pool.\relax }}{6}{table.caption.25}\protected@file@percent }
+\newlabel{tab:ablation-gallery}{{4}{6}{Stage~1 visual retrieval as gallery size grows. Distractors are sampled at random from the training pool.\relax }{table.caption.25}{}}
+\@writefile{toc}{\contentsline {paragraph}{A2.2 Caption-quality robustness (key finding).}{6}{section*.26}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Stage\nobreakspace  {}2 multimodal retrieval under different caption regimes. Shuffled = wrong (but in-distribution) caption assigned to each query.\relax }}{6}{table.caption.27}\protected@file@percent }
+\newlabel{tab:ablation-caption}{{5}{6}{Stage~2 multimodal retrieval under different caption regimes. Shuffled = wrong (but in-distribution) caption assigned to each query.\relax }{table.caption.27}{}}
+\@writefile{toc}{\contentsline {paragraph}{Mechanistic explanation for OOD failure.}{7}{section*.28}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.7}Out-of-Distribution Generalisation}{7}{subsection.6.7}\protected@file@percent }
+\newlabel{sec:ood}{{6.7}{7}{Out-of-Distribution Generalisation}{subsection.6.7}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces Out-of-distribution evaluation on 381 OOD triplets drawn from 8 held-out asset categories. \emph  {Stage 2 multimodal degrades substantially on OOD textures, while Stage 1 visual retains much of its in-domain capability.}\relax }}{7}{table.caption.29}\protected@file@percent }
+\newlabel{tab:ood}{{6}{7}{Out-of-distribution evaluation on 381 OOD triplets drawn from 8 held-out asset categories. \emph {Stage 2 multimodal degrades substantially on OOD textures, while Stage 1 visual retains much of its in-domain capability.}\relax }{table.caption.29}{}}
+\@writefile{toc}{\contentsline {paragraph}{Finding: Stage\nobreakspace  {}2 multimodal degrades sharply OOD.}{7}{section*.30}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Per-category OOD results (R@1 in \%, RMR-Score). Stage\nobreakspace  {}2 multimodal is worse than Stage\nobreakspace  {}1 visual on every category.\relax }}{7}{table.caption.31}\protected@file@percent }
+\newlabel{tab:ood-per-cat}{{7}{7}{Per-category OOD results (R@1 in \%, RMR-Score). Stage~2 multimodal is worse than Stage~1 visual on every category.\relax }{table.caption.31}{}}
+\@writefile{toc}{\contentsline {paragraph}{Implication for deployment.}{7}{section*.32}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion: Design Choices and Limitations}{7}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{What is novel and what is not.}{7}{section*.33}\protected@file@percent }
+\citation{chen2020simclr}
 \bibstyle{plain}
 \bibcite{radford2021clip}{1}
 \bibcite{li2022blip}{2}
+\@writefile{toc}{\contentsline {paragraph}{Why a shared ViT for both render and texture.}{8}{section*.34}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Why a projection head if both branches share an encoder.}{8}{section*.35}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Frozen vs.\ fine-tuned backbone.}{8}{section*.36}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Limitations.}{8}{section*.37}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusion}{8}{section.8}\protected@file@percent }
 \bibcite{chen2024internvl}{3}
 \bibcite{chen2020simclr}{4}
 \bibcite{he2020moco}{5}
@@ -93,4 +127,4 @@
 \bibcite{loshchilov2019adamw}{8}
 \bibcite{johnson2021faiss}{9}
 \bibcite{hu2022lora}{10}
-\gdef \@abspage@last{6}
+\gdef \@abspage@last{9}
