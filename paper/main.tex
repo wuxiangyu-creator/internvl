@@ -132,10 +132,10 @@ Our contributions are:
         A single scalar combining R@1, R@5, and MRR that captures precision,
         coverage, and ranking quality, addressing the fragmented-metrics
         problem in existing retrieval literature.
-  \item \textbf{Three empirical findings.}
+  \item \textbf{Four empirical findings.}
         (i)~End-to-end ViT fine-tuning is necessary for render-texture
         matching: frozen-backbone variants only reach R@1\,=\,11.0\%, while
-        unfrozen variants reach R@1\,=\,34.5\% --- a $+24$pp gap that
+        unfrozen variants reach R@1\,=\,40.0\% --- a $+29$pp gap that
         contrasts with typical image-text retrieval where frozen backbones
         often suffice.
         (ii)~Stage~2 multimodal retrieval (image+text query against the
@@ -143,10 +143,18 @@ Our contributions are:
         gallery storage, demonstrating that a frozen visual anchor lets a
         new query encoder be bolted on without re-indexing.
         (iii)~The multimodal path is much more brittle out-of-distribution
-        than the visual-only path: on 381 held-out OOD triplets, Stage~2
-        R@1 drops from 48.9\% to 6.3\% ($-43$pp), while Stage~1 only drops
-        from 40.0\% to 21.0\% ($-19$pp). This reveals that the LoRA-adapted
-        LLM has implicitly overfit to the in-domain caption distribution.
+        than the visual-only path: on 381 held-out in-library OOD triplets,
+        Stage~2 R@1 drops from 48.9\% to 6.3\% ($-43$pp), while Stage~1 only
+        drops from 40.0\% to 21.0\% ($-19$pp). A caption-shuffle ablation
+        reveals the mechanism: the LoRA-adapted LLM relies on the
+        \emph{distribution} of training-time captions rather than performing
+        true visual-semantic grounding.
+        (iv)~On 450 \emph{cross-dataset} triplets sampled from AmbientCG, a
+        self-supervised generic backbone (DINOv2-large) achieves R@1\,=\,30.0\%
+        while ReTR drops to 11.3\% --- a complete reversal from the in-domain
+        ranking. This reveals a sharp specialisation--robustness trade-off and
+        motivates a hierarchical retrieval design where ReTR serves
+        in-distribution queries and a generic SSL backbone serves novel ones.
   \item \textbf{A design choice for gallery-stable multimodal retrieval.}
         By freezing the Stage~1 ContrastiveHead in Stage~2 and training only
         the multimodal-side RetrievalHead (plus LLM LoRA), we keep the
@@ -517,14 +525,20 @@ CLIP ViT-B/32~\cite{radford2021clip}
 CLIP ViT-L/14~\cite{radford2021clip}
                               & 1.8  & 4.5  & 7.0  & .037 & 473 && .040 & .031 & 13.2  & .033 \\
 InternVL2-1B (zero-shot)      & 0.3  & 1.1  & 1.5  & .011 & 722 && .008 & .006 & 2.9   & .008 \\
+OpenCLIP ViT-L/14 (LAION-2B)~\cite{cherti2023openclip}
+                              & 3.0  & 7.5  & 10.8 & .059 & ---  && .063 & .045 & 21.3  & .055 \\
+DINOv2-base~\cite{oquab2024dinov2}    & 2.3  & 5.9  & 8.1  & .045 & ---  && .047 & .032 & 16.3  & .042 \\
+DINOv2-large~\cite{oquab2024dinov2}   & 1.9  & 4.7  & 6.6  & .039 & ---  && .040 & .026 & 13.2  & .035 \\
+SigLIP-SO400M-384~\cite{zhai2023siglip}
+                              & 5.4  & 12.7 & 16.3 & .095 & ---  && .101 & .075 & 34.4  & .092 \\
 \midrule
 ReTR Stage~1 (frozen ViT)     & 11.0 & 31.0 & 43.3 & .216 & 14  && .253 & .198 & 85.3  & .212 \\
-ReTR Stage~1 (unfrozen ViT)   & 34.5 & 71.6 & 81.4 & .511 & 2   && .579 & .503 & 187.5 & .524 \\
+ReTR Stage~1 (unfrozen ViT)   & 40.0 & 79.4 & 88.7 & .575 & 2   && .647 & .569 & 208.1 & .590 \\
 \textbf{ReTR Stage~2 (multimodal)$\dagger$}
-  & \textbf{44.5} & \textbf{83.8} & \textbf{91.2}
-  & \textbf{.619} & \textbf{2}
-  && \textbf{.688} & \textbf{.590} & \textbf{219.5}
-  & \textbf{.634} \\
+  & \textbf{48.9} & \textbf{87.8} & \textbf{92.6}
+  & \textbf{.660} & \textbf{2}
+  && \textbf{.724} & \textbf{.657} & \textbf{229.3}
+  & \textbf{.676} \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -804,6 +818,96 @@ Stage~2 as an opt-in mode for queries whose descriptions follow the in-domain
 distribution (e.g., user prompts written by an artist familiar with the
 material library).
 
+\subsection{Cross-Dataset Generalisation: Specialisation--Robustness Trade-off}
+\label{sec:crossds}
+
+The OOD analysis in \S\ref{sec:ood} held the asset library fixed (Unity
+\texttt{SceneObject/}) but tested unseen categories.
+A stronger generalisation test is whether ReTR transfers to a
+\emph{completely different} texture source.
+We construct a third evaluation set by sampling 150 popular PBR materials
+from \textbf{AmbientCG}~\cite{ambientcg}, an open-access photographic
+PBR material library entirely disjoint from our training distribution.
+Applying the same render-synthesis pipeline yields 450 (render, texture,
+description) triplets.
+Table~\ref{tab:crossds} reports retrieval performance for ReTR and four
+strong zero-shot visual backbones.
+
+\begin{table}[h]
+\centering
+\caption{Cross-dataset evaluation on 450 AmbientCG triplets.
+         \emph{ReTR loses to all generic visual backbones; the strongest
+         transfer model is DINOv2-large.}}
+\label{tab:crossds}
+\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Method                                   & R@1  & R@5  & R@10 & MRR  & RMR  \\
+\midrule
+CLIP ViT-L/14~\cite{radford2021clip}     & 15.8 & 57.3 & 69.6 & .347 & .359 \\
+OpenCLIP ViT-L/14~\cite{cherti2023openclip} & 20.4 & 81.6 & 89.1 & .460 & .493 \\
+SigLIP-SO400M-384~\cite{zhai2023siglip}  & 22.2 & 70.4 & 82.4 & .437 & .455 \\
+\textbf{DINOv2-large}~\cite{oquab2024dinov2}
+                                          & \textbf{30.0} & \textbf{92.7} & \textbf{96.4}
+                                          & \textbf{.559} & \textbf{.595} \\
+\midrule
+ReTR Stage~1 (visual)                    & 11.3 & 40.9 & 52.4 & .259 & .260 \\
+ReTR Stage~2 (multimodal)                &  6.9 & 24.0 & 35.3 & .160 & .156 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Finding: ReTR loses to generic backbones on cross-dataset queries.}
+This is the most informative result in the paper.
+On in-domain ReTR-Bench (Table~\ref{tab:main}), ReTR Stage~2 beats the
+strongest zero-shot baseline (SigLIP) by $9.1\times$ on R@1.
+On cross-dataset AmbientCG, the order \emph{reverses}: DINOv2-large achieves
+30.0\% R@1 against ReTR Stage~1's 11.3\% --- a $2.7\times$ deficit for ReTR.
+Adding multimodal information makes things worse still (Stage~2: 6.9\%).
+
+\paragraph{Reading the three-tier picture.}
+Combining Tables~\ref{tab:main}, \ref{tab:ood}, and \ref{tab:crossds}, we see
+a clear specialisation--robustness gradient:
+
+\begin{table}[h]
+\centering
+\caption{Three-tier generalisation summary (R@1 in \%; rank within method
+         class).}
+\label{tab:three-tier}
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Method                & In-domain   & In-library OOD & Cross-dataset \\
+                      & (1{,}950 gallery) & (381 held-out cats.) & (AmbientCG) \\
+\midrule
+SigLIP                &  5.4 & --- &  22.2 \\
+DINOv2-large          &  1.9 & --- & \textbf{30.0} \\
+\textbf{ReTR Stage 1} & \textbf{40.0} & \textbf{21.0} &  11.3 \\
+\textbf{ReTR Stage 2} & \textbf{48.9} &  6.3 &   6.9 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+ReTR is the strongest model on the data it was trained for, but its
+specialisation comes at a real cost on truly out-of-distribution data.
+Self-supervised generic models (DINOv2) that were never fine-tuned to any
+narrow domain retain superior cross-dataset transfer.
+This validates the long-standing intuition --- often discussed in the
+robustness literature but rarely quantified for material retrieval ---
+that aggressive in-domain fine-tuning trades dataset breadth for accuracy.
+
+\paragraph{Practical deployment recipe.}
+The three-tier result motivates a \emph{hierarchical retrieval system} in
+production:
+(i)~serve ReTR Stage~2 as the default for queries known to come from the
+trained library;
+(ii)~fall back to ReTR Stage~1 when category novelty is suspected (e.g.,
+detected via Stage~2 vs.\ Stage~1 disagreement);
+(iii)~fall back further to DINOv2 when the query originates from a library
+or asset source clearly outside the training distribution.
+The DINOv2 gallery embeddings can be pre-computed once and stored alongside
+the ReTR index at modest cost.
+
 % ─────────────────────────────────────────────────────────────────────────────
 \section{Discussion: Design Choices and Limitations}
 % ─────────────────────────────────────────────────────────────────────────────
@@ -891,15 +995,20 @@ We additionally introduced \textbf{RMR-Score}, a simple unified metric
 combining precision, coverage, and ranking quality, to mitigate the
 fragmented-metrics problem common in cross-modal retrieval literature.
 
-Three practical takeaways:
+Four practical takeaways:
 (i)~for the render-to-material domain shift, end-to-end ViT fine-tuning is
-necessary and provides the largest single jump in performance ($+24$pp R@1);
+necessary and provides the largest single jump in performance ($+29$pp R@1);
 (ii)~anchoring a multimodal query path to a frozen visual gallery is a
 useful design pattern when the gallery index must remain stable across
 model updates;
 (iii)~the multimodal path is significantly more brittle out-of-distribution
 than the visual-only path ($-43$pp vs.\ $-19$pp R@1 on held-out asset
-categories), so production systems should keep the visual path as a fallback.
+categories) due to caption-distribution dependence, so production systems
+should keep the visual path as a fallback;
+(iv)~heavy in-domain fine-tuning trades cross-dataset robustness for
+accuracy --- on AmbientCG, DINOv2-large beats ReTR by $18.7$pp R@1.
+Hierarchical retrieval combining ReTR with a generic SSL backbone
+(e.g., DINOv2) for novelty cases is the recommended deployment.
 
 Future work includes: (i)~larger open-world galleries with distractors to
 test deployment-scale behaviour;
@@ -955,6 +1064,22 @@ GPUs,'' \textit{IEEE Trans.\ Big Data}, 2021.
 \bibitem{hu2022lora}
 E.~J.~Hu et~al., ``LoRA: Low-rank adaptation of large language models,''
 \textit{ICLR}, 2022.
+
+\bibitem{cherti2023openclip}
+M.~Cherti et~al., ``Reproducible scaling laws for contrastive language-image
+learning,'' \textit{CVPR}, 2023.
+
+\bibitem{oquab2024dinov2}
+M.~Oquab et~al., ``DINOv2: Learning robust visual features without
+supervision,'' \textit{TMLR}, 2024.
+
+\bibitem{zhai2023siglip}
+X.~Zhai, B.~Mustafa, A.~Kolesnikov, and L.~Beyer, ``Sigmoid loss for language
+image pre-training,'' \textit{ICCV}, 2023.
+
+\bibitem{ambientcg}
+L.~Demes, ``AmbientCG: free public domain PBR materials,''
+\url{https://ambientcg.com}, accessed 2026.
 
 \end{thebibliography}
 
