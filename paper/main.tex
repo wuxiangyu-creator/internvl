@@ -58,15 +58,24 @@ We construct a dataset of \textbf{19,568} (render, texture, description)
 triplets and report \textbf{RMR-Score}, a simple unified metric that
 aggregates precision (R@1), coverage (R@5), and ranking quality (MRR) into
 one comparable scalar.
-On the validation gallery of 1,956 textures, Stage~1 achieves
-RMR-Score\,=\,0.524 (R@1\,=\,34.5\%) and Stage~2 multimodal retrieval
-further improves to \textbf{RMR-Score\,=\,0.634} (R@1\,=\,44.5\%,
-R@5\,=\,83.8\%), versus 0.033 for zero-shot CLIP ViT-L/14.
-Two empirical findings are emphasised: (i)~end-to-end ViT fine-tuning is
-critical for the render-texture domain shift, providing a $+24$pp R@1 gain
+On the in-domain validation gallery of 1,950 textures, Stage~1 achieves
+RMR-Score\,=\,0.590 (R@1\,=\,40.0\%) and Stage~2 multimodal retrieval
+further improves to \textbf{RMR-Score\,=\,0.676} (R@1\,=\,48.9\%,
+R@5\,=\,87.8\%), versus 0.092 for the strongest zero-shot baseline
+(SigLIP-SO400M) and 0.033 for CLIP ViT-L/14.
+We report four empirical findings: (i)~end-to-end ViT fine-tuning is
+critical for the render-texture domain shift, providing a $+29$pp R@1 gain
 over a frozen-backbone variant, contrary to the usual practice in image-text
 retrieval; (ii)~anchoring the multimodal path to a frozen visual gallery
-keeps Stage~2 deployment costs identical to Stage~1.
+keeps Stage~2 deployment costs identical to Stage~1; (iii)~Stage~2
+deteriorates sharply on held-out in-library categories ($-43$pp R@1), and
+a caption-shuffle probe reveals the LLM relies on training-time caption
+distribution rather than visual--semantic grounding; (iv)~on truly
+cross-dataset queries (AmbientCG, 450 triplets), a generic self-supervised
+backbone (DINOv2-large) achieves R@1\,=\,30.0\% while ReTR drops to 11.3\%
+--- a complete reversal that exposes a specialisation--robustness trade-off
+and motivates a hierarchical retrieval system combining ReTR with a generic
+SSL fallback.
 \end{abstract}
 
 % ─────────────────────────────────────────────────────────────────────────────
@@ -297,8 +306,8 @@ material ID:
 \toprule
 Split & \# Pairs & \# Unique Materials \\
 \midrule
-Train & 17{,}612 & 17{,}612 \\
-Validation & 1{,}956 & 1{,}956 \\
+Train & 17{,}618 & 17{,}618 \\
+Validation & 1{,}950 & 1{,}950 \\
 \midrule
 Total & 19{,}568 & 19{,}568 \\
 \bottomrule
@@ -507,7 +516,7 @@ Table~\ref{tab:main} reports retrieval performance on the validation gallery.
 
 \begin{table*}[t]
 \centering
-\caption{Retrieval results on the validation set (gallery size = 1{,}956).
+\caption{Retrieval results on the validation set (gallery size = 1{,}950).
          R@$K$ in \%; MRR, nDCG, MAP $\in [0,1]$; MedR = median rank ($\downarrow$);
          rSum = R@1+R@5+R@10 ($\uparrow$); RMR = proposed unified metric ($\uparrow$).
          Best results in \textbf{bold}. $\dagger$ uses image+text query.}
@@ -544,25 +553,26 @@ ReTR Stage~1 (unfrozen ViT)   & 40.0 & 79.4 & 88.7 & .575 & 2   && .647 & .569 &
 \end{table*}
 
 \paragraph{Key observations.}
-(1)~All zero-shot baselines achieve near-zero RMR-Score ($\leq 0.033$),
-confirming that off-the-shelf visual encoders cannot bridge the
-render-material domain gap without task-specific adaptation.
+(1)~All zero-shot baselines achieve low RMR-Score ($\leq 0.092$, with
+SigLIP-SO400M the strongest at $0.092$), confirming that off-the-shelf
+visual encoders cannot bridge the render-material domain gap without
+task-specific adaptation.
 (2)~ReTR Stage~1 with frozen ViT achieves RMR = 0.212 (R@1 = 11.0\%), a
 meaningful improvement showing that even a lightweight projection head can
 partially bridge the domain gap.
-(3)~Unfreezing the ViT in Stage~1 yields a \textbf{$2.5\times$ boost} to
-RMR = 0.524 ($15.9\times$ over CLIP ViT-L/14).
-R@1 improves from 1.8\% to 34.5\% ($19\times$) and median rank drops from
-473 to~2.
-(4)~\textbf{Stage~2 multimodal retrieval} adds a further \textbf{$+21\%$
-relative gain}, achieving \textbf{RMR = 0.634} (R@1 = 44.5\%,
-R@5 = 83.8\%, R@10 = 91.2\%).
+(3)~Unfreezing the ViT in Stage~1 yields a \textbf{$2.8\times$ boost} to
+RMR = 0.590 ($6.4\times$ over SigLIP, $17.9\times$ over CLIP ViT-L/14).
+R@1 improves from 5.4\% (SigLIP) to 40.0\% ($7.4\times$) and median rank
+drops from 473 to~2.
+(4)~\textbf{Stage~2 multimodal retrieval} adds a further \textbf{$+15\%$
+relative gain}, achieving \textbf{RMR = 0.676} (R@1 = 48.9\%,
+R@5 = 87.8\%, R@10 = 92.6\%).
 The text descriptions of material appearance provide the LLM with
 complementary semantic information unavailable from rendered images alone,
 enabling it to resolve same-family confusions that confound the visual-only
 Stage~1 model.
-(5)~The R@1 $\to$ R@5 gap narrows from Stage~1 (34.5\% $\to$ 71.6\%, ratio
-2.07$\times$) to Stage~2 (44.5\% $\to$ 83.8\%, ratio 1.88$\times$),
+(5)~The R@1 $\to$ R@5 gap narrows from Stage~1 (40.0\% $\to$ 79.4\%, ratio
+1.99$\times$) to Stage~2 (48.9\% $\to$ 87.8\%, ratio 1.80$\times$),
 indicating that multimodal queries not only rank the correct texture higher
 on average but also reduce within-family confusion.
 
@@ -572,8 +582,8 @@ Table~\ref{tab:main} also illustrates why a unified metric is valuable:
 rSum for CLIP ViT-L/14 is 13.2, suggesting reasonable coverage, but
 RMR-Score correctly reveals this as only 0.033 — reflecting the fact that
 near-all retrieved results are wrong.
-Conversely, our model's rSum of 187.5 and RMR of 0.524 consistently indicate
-strong performance across all three axes.
+Conversely, our model's rSum of 208.1 and RMR of 0.590 (Stage~1) consistently
+indicate strong performance across all three axes.
 
 \subsection{Qualitative Analysis}
 
@@ -952,7 +962,8 @@ representation stays general,
 
 \paragraph{Frozen vs.\ fine-tuned backbone.}
 Table~\ref{tab:main} shows that a frozen InternViT only reaches
-RMR\,=\,0.212 (R@1\,=\,11.0\%); unfreezing it gives RMR\,=\,0.524.
+RMR\,=\,0.212 (R@1\,=\,11.0\%); unfreezing it gives RMR\,=\,0.590
+(R@1\,=\,40.0\%).
 This is the most important practical finding of the paper: for the
 render-to-material domain shift, the ViT must be allowed to re-organise
 its feature geometry.
@@ -992,11 +1003,12 @@ pipeline applied to a previously unstudied task, together with the dataset,
 metric, and empirical findings needed to evaluate it.
 
 Quantitatively, Stage~1 fine-tunes the InternVL2-1B ViT with symmetric
-InfoNCE, achieving RMR-Score = 0.524 --- a $15.9\times$ improvement over
-zero-shot CLIP ViT-L/14.
+InfoNCE, achieving RMR-Score = 0.590 --- a $6.4\times$ improvement over the
+strongest zero-shot baseline (SigLIP-SO400M, RMR\,=\,0.092) and
+$17.9\times$ over CLIP ViT-L/14.
 Stage~2 adds a LoRA-adapted LLM query encoder and a RetrievalHead that maps
 into the \emph{same} 256-d embedding space, reaching
-\textbf{RMR-Score = 0.634} (R@1 = 44.5\%, R@5 = 83.8\%, R@10 = 91.2\%)
+\textbf{RMR-Score = 0.676} (R@1 = 48.9\%, R@5 = 87.8\%, R@10 = 92.6\%)
 without re-indexing the gallery.
 We additionally introduced \textbf{RMR-Score}, a simple unified metric
 combining precision, coverage, and ranking quality, to mitigate the
